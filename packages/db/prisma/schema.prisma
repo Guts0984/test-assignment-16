@@ -70,7 +70,7 @@ enum MovementKind {
 }
 
 model Warehouse {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code        String    @unique
   name        String
   country     String    @db.Char(2)
@@ -88,7 +88,7 @@ model Warehouse {
 }
 
 model Zone {
-  id          String     @id @default(uuid()) @db.Uuid
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   warehouseId String     @map("warehouse_id") @db.Uuid
   code        String
   name        String
@@ -100,7 +100,7 @@ model Zone {
 }
 
 model Location {
-  id                String       @id @default(uuid()) @db.Uuid
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   warehouseId       String       @map("warehouse_id") @db.Uuid
   zoneId            String?      @map("zone_id") @db.Uuid
   kind              LocationKind
@@ -120,7 +120,7 @@ model Location {
 }
 
 model Shop {
-  id                String   @id @default(uuid()) @db.Uuid
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code              String   @unique
   name              String
   webhookUrl        String   @map("webhook_url")
@@ -132,7 +132,7 @@ model Shop {
 }
 
 model ShopApiKey {
-  id         String    @id @default(uuid()) @db.Uuid
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId     String    @map("shop_id") @db.Uuid
   prefix     String    @unique
   hash       String
@@ -146,7 +146,7 @@ model ShopApiKey {
 }
 
 model ShopUser {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId       String   @map("shop_id") @db.Uuid
   email        String   @unique
   name         String
@@ -158,7 +158,7 @@ model ShopUser {
 }
 
 model Staff {
-  id           String      @id @default(uuid()) @db.Uuid
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String      @unique
   name         String
   passwordHash String      @map("password_hash")
@@ -170,7 +170,7 @@ model Staff {
 }
 
 model StaffRoleAssignment {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   staffId     String    @map("staff_id") @db.Uuid
   role        StaffRole
   warehouseId String?   @map("warehouse_id") @db.Uuid
@@ -181,7 +181,7 @@ model StaffRoleAssignment {
 }
 
 model RefreshToken {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   familyId    String    @map("family_id") @db.Uuid
   subjectType String    @map("subject_type")
   subjectId   String    @map("subject_id") @db.Uuid
@@ -196,7 +196,7 @@ model RefreshToken {
 }
 
 model Sku {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId      String   @map("shop_id") @db.Uuid
   code        String
   name        String
@@ -215,7 +215,7 @@ model Sku {
 }
 
 model Batch {
-  id         String    @id @default(uuid()) @db.Uuid
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   skuId      String    @map("sku_id") @db.Uuid
   code       String
   expiresOn  DateTime? @map("expires_on") @db.Date
@@ -268,7 +268,7 @@ model StockMovement {
 }
 
 model InboundRequest {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId      String   @map("shop_id") @db.Uuid
   warehouseId String   @map("warehouse_id") @db.Uuid
   reference   String
@@ -281,7 +281,7 @@ model InboundRequest {
 }
 
 model InboundLine {
-  id          String         @id @default(uuid()) @db.Uuid
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   inboundId   String         @map("inbound_id") @db.Uuid
   skuId       String         @map("sku_id") @db.Uuid
   expectedQty Int            @map("expected_qty")
@@ -292,7 +292,7 @@ model InboundLine {
 }
 
 model Receipt {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   warehouseId String    @map("warehouse_id") @db.Uuid
   shopId      String    @map("shop_id") @db.Uuid
   inboundId   String?   @map("inbound_id") @db.Uuid
@@ -306,7 +306,7 @@ model Receipt {
 }
 
 model ReceiptLine {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   receiptId      String   @map("receipt_id") @db.Uuid
   skuId          String   @map("sku_id") @db.Uuid
   batchId        String   @map("batch_id") @db.Uuid
@@ -320,7 +320,7 @@ model ReceiptLine {
 }
 
 model ReceiptDiscrepancy {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   receiptId   String   @map("receipt_id") @db.Uuid
   skuId       String   @map("sku_id") @db.Uuid
   expectedQty Int      @map("expected_qty")
@@ -332,7 +332,7 @@ model ReceiptDiscrepancy {
 }
 
 model Transfer {
-  id                String    @id @default(uuid()) @db.Uuid
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   fromWarehouseId   String    @map("from_warehouse_id") @db.Uuid
   toWarehouseId     String    @map("to_warehouse_id") @db.Uuid
   status            String    @default("in_transit")
@@ -346,7 +346,7 @@ model Transfer {
 }
 
 model TransferLine {
-  id          String @id @default(uuid()) @db.Uuid
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   transferId  String @map("transfer_id") @db.Uuid
   skuId       String @map("sku_id") @db.Uuid
   batchId     String @map("batch_id") @db.Uuid
@@ -358,7 +358,7 @@ model TransferLine {
 }
 
 model Order {
-  id                     String         @id @default(uuid()) @db.Uuid
+  id                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId                 String         @map("shop_id") @db.Uuid
   externalNumber         String         @map("external_number")
   payloadHash            String         @map("payload_hash")
@@ -391,7 +391,7 @@ model Order {
 }
 
 model OrderLine {
-  id          String @id @default(uuid()) @db.Uuid
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orderId     String @map("order_id") @db.Uuid
   lineNo      Int    @map("line_no")
   skuId       String @map("sku_id") @db.Uuid
@@ -407,7 +407,7 @@ model OrderLine {
 }
 
 model OrderReservation {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orderId     String   @map("order_id") @db.Uuid
   orderLineId String   @map("order_line_id") @db.Uuid
   locationId  String   @map("location_id") @db.Uuid
@@ -438,7 +438,7 @@ model OrderStatusHistory {
 }
 
 model Wave {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   warehouseId String   @map("warehouse_id") @db.Uuid
   trigger     String
   createdBy   String?  @map("created_by") @db.Uuid
@@ -450,7 +450,7 @@ model Wave {
 }
 
 model WaveOrder {
-  id      String  @id @default(uuid()) @db.Uuid
+  id      String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   waveId  String  @map("wave_id") @db.Uuid
   orderId String  @map("order_id") @db.Uuid
   active  Boolean @default(true)
@@ -460,7 +460,7 @@ model WaveOrder {
 }
 
 model PickTask {
-  id           String    @id @default(uuid()) @db.Uuid
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   waveId       String    @map("wave_id") @db.Uuid
   orderId      String    @map("order_id") @db.Uuid
   warehouseId  String    @map("warehouse_id") @db.Uuid
@@ -477,7 +477,7 @@ model PickTask {
 }
 
 model PickLine {
-  id          String @id @default(uuid()) @db.Uuid
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   taskId      String @map("task_id") @db.Uuid
   orderLineId String @map("order_line_id") @db.Uuid
   locationId  String @map("location_id") @db.Uuid
@@ -494,7 +494,7 @@ model PickLine {
 }
 
 model PickScan {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   idempotencyKey String   @unique @map("idempotency_key")
   lineId         String   @map("line_id") @db.Uuid
   pickerId       String   @map("picker_id") @db.Uuid
@@ -506,7 +506,7 @@ model PickScan {
 }
 
 model Shortage {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   warehouseId String   @map("warehouse_id") @db.Uuid
   taskId      String   @map("task_id") @db.Uuid
   lineId      String   @map("line_id") @db.Uuid
@@ -523,7 +523,7 @@ model Shortage {
 }
 
 model StockCount {
-  id            String    @id @default(uuid()) @db.Uuid
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   warehouseId   String    @map("warehouse_id") @db.Uuid
   locationId    String    @map("location_id") @db.Uuid
   status        String    @default("open")
@@ -541,7 +541,7 @@ model StockCount {
 }
 
 model StockCountLine {
-  id               String  @id @default(uuid()) @db.Uuid
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   countId          String  @map("count_id") @db.Uuid
   skuId            String  @map("sku_id") @db.Uuid
   batchId          String  @map("batch_id") @db.Uuid
@@ -557,7 +557,7 @@ model StockCountLine {
 }
 
 model Adjustment {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   warehouseId String   @map("warehouse_id") @db.Uuid
   countId     String   @map("count_id") @db.Uuid
   locationId  String   @map("location_id") @db.Uuid
@@ -586,7 +586,7 @@ model IdempotencyRecord {
 }
 
 model ScheduledAction {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   kind        String
   key         String
   dueAt       DateTime  @map("due_at") @db.Timestamptz(3)
@@ -618,7 +618,7 @@ model WebhookStream {
 }
 
 model WebhookEvent {
-  id            String    @id @default(uuid()) @db.Uuid
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId        String    @map("shop_id") @db.Uuid
   stream        String
   version       Int
@@ -637,7 +637,7 @@ model WebhookEvent {
 }
 
 model ImportBatch {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   shopId      String    @map("shop_id") @db.Uuid
   status      String    @default("pending")
   payload     Json

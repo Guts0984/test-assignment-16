@@ -10,9 +10,11 @@ if (testDb === undefined) throw new Error('TEST_DATABASE_URL is required (cp .en
 
 export default defineConfig({
   resolve: { conditions: ['source'] },
+  ssr: { resolve: { conditions: ['source'] } },
   test: {
     include: ['test/**/*.int.spec.ts'],
     environment: 'node',
+    server: { deps: { inline: [/@ff\//] } },
     globalSetup: ['test/setup/global-setup.ts'],
     env: { DATABASE_URL: testDb },
     testTimeout: 120_000,

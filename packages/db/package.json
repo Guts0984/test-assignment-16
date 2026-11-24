@@ -24,7 +24,8 @@
   "dependencies": {
     "@ff/shared": "workspace:*",
     "@prisma/client": "6.19.3",
-    "prisma": "6.19.3"
+    "prisma": "6.19.3",
+    "argon2": "0.45.2"
   },
   "devDependencies": {
     "vitest": "3.2.7",
