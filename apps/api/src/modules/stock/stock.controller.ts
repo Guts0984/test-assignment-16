@@ -13,7 +13,10 @@ import { StockService } from './stock.service';
 export class ShopStockController {
   constructor(private readonly stock: StockService) {}
 
-  @Get() @ShopAccess() @Ok(StockPageDto) @ApiProtectedErrors()
+  @Get()
+  @ShopAccess()
+  @Ok(StockPageDto)
+  @ApiProtectedErrors()
   list(@CurrentPrincipal() p: ShopUserPrincipal | ApiKeyPrincipal, @Query() q: StockQueryDto) {
     return this.stock.shopStock(p.shopId, q);
   }
@@ -24,7 +27,10 @@ export class ShopStockController {
 export class WarehouseStockController {
   constructor(private readonly stock: StockService) {}
 
-  @Get() @StaffAccess(['shift_lead', 'storekeeper', 'picker', 'packer'], 'warehouseId') @Ok(StockPageDto) @ApiProtectedErrors()
+  @Get()
+  @StaffAccess(['shift_lead', 'storekeeper', 'picker', 'packer'], 'warehouseId')
+  @Ok(StockPageDto)
+  @ApiProtectedErrors()
   get(@Param('warehouseId', UUID) warehouseId: string, @Query() q: StaffStockQueryDto) {
     return this.stock.warehouseStock(warehouseId, q.sku);
   }

@@ -18,18 +18,27 @@ export class AdminStaffService {
     return (await this.db.warehouse.count({ where: { id: { in: ids } } })) === ids.length;
   }
 
-  private dedupe = (roles: Roles): Roles =>
-    [...new Map(roles.map((r) => [`${r.role}/${r.warehouseId ?? '-'}`, r])).values()];
+  private dedupe = (roles: Roles): Roles => [
+    ...new Map(roles.map((r) => [`${r.role}/${r.warehouseId ?? '-'}`, r])).values(),
+  ];
 
-  async create(input: { email: string; name: string; password: string; roles: Roles }): Promise<Result<ReturnType<typeof toStaff>>> {
-    if (!(await this.warehousesExist(input.roles))) return fail('VALIDATION_FAILED', 'unknown warehouse in roles');
+  async create(input: {
+    email: string;
+    name: string;
+    password: string;
+    roles: Roles;
+  }): Promise<Result<ReturnType<typeof toStaff>>> {
+    if (!(await this.warehousesExist(input.roles)))
+      return fail('VALIDATION_FAILED', 'unknown warehouse in roles');
     try {
       const s = await this.db.staff.create({
         data: {
           email: input.email,
           name: input.name,
           passwordHash: await argonHash(input.password, { type: argon2id }),
-          roles: { create: this.dedupe(input.roles).map((r) => ({ role: r.role, warehouseId: r.warehouseId })) },
+          roles: {
+            create: this.dedupe(input.roles).map((r) => ({ role: r.role, warehouseId: r.warehouseId })),
+          },
         },
         include: { roles: true },
       });
@@ -41,10 +50,17 @@ export class AdminStaffService {
   }
 
   async list() {
-    return { items: (await this.db.staff.findMany({ include: { roles: true }, orderBy: { email: 'asc' } })).map(toStaff) };
+    return {
+      items: (await this.db.staff.findMany({ include: { roles: true }, orderBy: { email: 'asc' } })).map(
+        toStaff,
+      ),
+    };
   }
 
-  async update(id: string, patch: { name?: string; active?: boolean; roles?: Roles }): Promise<Result<ReturnType<typeof toStaff>>> {
+  async update(
+    id: string,
+    patch: { name?: string; active?: boolean; roles?: Roles },
+  ): Promise<Result<ReturnType<typeof toStaff>>> {
     if (patch.roles !== undefined && !(await this.warehousesExist(patch.roles))) {
       return fail('VALIDATION_FAILED', 'unknown warehouse in roles');
     }
@@ -53,11 +69,16 @@ export class AdminStaffService {
       if ((await tx.staff.count({ where: { id } })) === 0) return false;
       await tx.staff.updateMany({
         where: { id },
-        data: { ...(patch.name === undefined ? {} : { name: patch.name }), ...(patch.active === undefined ? {} : { active: patch.active }) },
+        data: {
+          ...(patch.name === undefined ? {} : { name: patch.name }),
+          ...(patch.active === undefined ? {} : { active: patch.active }),
+        },
       });
       if (patch.roles !== undefined) {
         await tx.staffRoleAssignment.deleteMany({ where: { staffId: id } });
-        await tx.staffRoleAssignment.createMany({ data: this.dedupe(patch.roles).map((r) => ({ staffId: id, ...r })) });
+        await tx.staffRoleAssignment.createMany({
+          data: this.dedupe(patch.roles).map((r) => ({ staffId: id, ...r })),
+        });
       }
       return true;
     });

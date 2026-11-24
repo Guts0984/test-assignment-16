@@ -38,7 +38,12 @@ export const warehouseSchema = z.object({
 export class WarehouseDto extends createZodDto(warehouseSchema) {}
 export class WarehouseListDto extends createZodDto(z.object({ items: z.array(warehouseSchema) })) {}
 
-export const zoneSchema = z.object({ id: z.string().uuid(), warehouseId: z.string().uuid(), code: z.string(), name: z.string() });
+export const zoneSchema = z.object({
+  id: z.string().uuid(),
+  warehouseId: z.string().uuid(),
+  code: z.string(),
+  name: z.string(),
+});
 export class ZoneDto extends createZodDto(zoneSchema) {}
 
 export const cellSchema = z.object({
@@ -51,7 +56,9 @@ export const cellSchema = z.object({
   capacityWeightG: z.number(),
   blockedReason: z.string().nullable(),
 });
-export class CellListDto extends createZodDto(z.object({ items: z.array(cellSchema), nextCursor: z.string().nullable() })) {}
+export class CellListDto extends createZodDto(
+  z.object({ items: z.array(cellSchema), nextCursor: z.string().nullable() }),
+) {}
 export class CreatedCellsDto extends createZodDto(z.object({ created: z.number().int() })) {}
 
 export const shopSchema = z.object({
@@ -64,7 +71,11 @@ export const shopSchema = z.object({
 export class ShopDto extends createZodDto(shopSchema) {}
 export class ShopListDto extends createZodDto(z.object({ items: z.array(shopSchema) })) {}
 export class CreatedShopDto extends createZodDto(
-  z.object({ shop: shopSchema, apiKey: z.string().describe('shown once'), webhookSecret: z.string().describe('shown once') }),
+  z.object({
+    shop: shopSchema,
+    apiKey: z.string().describe('shown once'),
+    webhookSecret: z.string().describe('shown once'),
+  }),
 ) {}
 
 export const apiKeySchema = z.object({
@@ -75,7 +86,9 @@ export const apiKeySchema = z.object({
   revokedAt: z.string().nullable(),
 });
 export class ApiKeyListDto extends createZodDto(z.object({ items: z.array(apiKeySchema) })) {}
-export class CreatedApiKeyDto extends createZodDto(z.object({ key: apiKeySchema, apiKey: z.string().describe('shown once') })) {}
+export class CreatedApiKeyDto extends createZodDto(
+  z.object({ key: apiKeySchema, apiKey: z.string().describe('shown once') }),
+) {}
 export class ShopUserDto extends createZodDto(
   z.object({ id: z.string().uuid(), shopId: z.string().uuid(), email: z.string(), name: z.string() }),
 ) {}

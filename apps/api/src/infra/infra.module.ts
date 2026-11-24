@@ -11,32 +11,53 @@ import { createRateLimiter } from '../common/rate-limit/limiter';
 import { CLOCK, DB, EMITTER, ENV, LIMITER, QUEUES, REDIS, TEST_CLOCK, TRUSTED_PROXIES } from './tokens';
 
 const PROVIDERS = [
-    { provide: DB, inject: [ENV], useFactory: (e: ApiEnv): Db => createDb({ url: e.DATABASE_URL, poolSize: e.DB_POOL_SIZE }) },
-    {
-      provide: REDIS,
-      inject: [ENV],
-      useFactory: (e: ApiEnv): Redis => new Redis({ ...redisOptions(e.REDIS_URL), connectionName: `api-${e.API_INSTANCE_ID}` }),
+  {
+    provide: DB,
+    inject: [ENV],
+    useFactory: (e: ApiEnv): Db => createDb({ url: e.DATABASE_URL, poolSize: e.DB_POOL_SIZE }),
+  },
+  {
+    provide: REDIS,
+    inject: [ENV],
+    useFactory: (e: ApiEnv): Redis =>
+      new Redis({ ...redisOptions(e.REDIS_URL), connectionName: `api-${e.API_INSTANCE_ID}` }),
+  },
+  {
+    provide: LIMITER,
+    inject: [ENV],
+    useFactory: (e: ApiEnv) => {
+      // Fail fast while Redis is down so the limiter falls back instead of queueing commands.
+      const redis = new Redis({
+        ...redisOptions(e.REDIS_URL),
+        maxRetriesPerRequest: 1,
+        enableOfflineQueue: false,
+      });
+      redis.on('error', () => undefined);
+      return { redis, limiter: createRateLimiter({ redis, windowMs: e.RATE_LIMIT_WINDOW_MS }) };
     },
-    {
-      provide: LIMITER,
-      inject: [ENV],
-      useFactory: (e: ApiEnv) => {
-        // Fail fast while Redis is down so the limiter falls back instead of queueing commands.
-        const redis = new Redis({ ...redisOptions(e.REDIS_URL), maxRetriesPerRequest: 1, enableOfflineQueue: false });
-        redis.on('error', () => undefined);
-        return { redis, limiter: createRateLimiter({ redis, windowMs: e.RATE_LIMIT_WINDOW_MS }) };
-      },
-    },
-    {
-      provide: TEST_CLOCK,
-      inject: [ENV],
-      useFactory: async (e: ApiEnv): Promise<SharedTestClock | null> =>
-        e.TEST_CLOCK_ENABLED ? startSharedTestClock(e.DATABASE_URL) : null,
-    },
-    { provide: CLOCK, inject: [TEST_CLOCK], useFactory: (t: SharedTestClock | null): Clock => t?.clock ?? systemClock },
-    { provide: QUEUES, inject: [ENV], useFactory: (e: ApiEnv): Queues => createQueues(redisOptions(e.REDIS_URL)) },
-    { provide: EMITTER, inject: [REDIS], useFactory: (r: Redis) => createRedisEmitter(r) },
-    { provide: TRUSTED_PROXIES, inject: [ENV], useFactory: (e: ApiEnv) => parseTrustedProxies(e.TRUSTED_PROXY_CIDRS) },
+  },
+  {
+    provide: TEST_CLOCK,
+    inject: [ENV],
+    useFactory: async (e: ApiEnv): Promise<SharedTestClock | null> =>
+      e.TEST_CLOCK_ENABLED ? startSharedTestClock(e.DATABASE_URL) : null,
+  },
+  {
+    provide: CLOCK,
+    inject: [TEST_CLOCK],
+    useFactory: (t: SharedTestClock | null): Clock => t?.clock ?? systemClock,
+  },
+  {
+    provide: QUEUES,
+    inject: [ENV],
+    useFactory: (e: ApiEnv): Queues => createQueues(redisOptions(e.REDIS_URL)),
+  },
+  { provide: EMITTER, inject: [REDIS], useFactory: (r: Redis) => createRedisEmitter(r) },
+  {
+    provide: TRUSTED_PROXIES,
+    inject: [ENV],
+    useFactory: (e: ApiEnv) => parseTrustedProxies(e.TRUSTED_PROXY_CIDRS),
+  },
 ];
 
 @Global()

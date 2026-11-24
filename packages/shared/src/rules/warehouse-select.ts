@@ -43,7 +43,10 @@ export type WarehouseChoice = { readonly warehouseId: string; readonly full: boo
  * Full coverage beats partial; among full ones the nearest wins. If none is full, the one covering
  * the most units wins, then the nearest. The warehouse id breaks remaining ties.
  */
-export const selectWarehouse = (candidates: readonly WarehouseCoverage[], need: OrderNeed): WarehouseChoice | null => {
+export const selectWarehouse = (
+  candidates: readonly WarehouseCoverage[],
+  need: OrderNeed,
+): WarehouseChoice | null => {
   const ranked = candidates
     .map((w) => ({ w, full: coversAll(w, need), units: unitsCovered(w, need), dist: distanceScore(w, need) }))
     .sort(

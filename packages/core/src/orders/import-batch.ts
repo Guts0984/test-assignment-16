@@ -25,7 +25,12 @@ export const createImportBatch = async (
   });
 
 export type BatchItemResult =
-  | { readonly externalNumber: string; readonly ok: true; readonly orderId: string; readonly created: boolean }
+  | {
+      readonly externalNumber: string;
+      readonly ok: true;
+      readonly orderId: string;
+      readonly created: boolean;
+    }
   | { readonly externalNumber: string; readonly ok: false; readonly code: string; readonly message: string };
 
 /** Idempotent: re-running a batch re-imports nothing new (every item is an idempotent import). */
@@ -38,7 +43,10 @@ export const processImportBatch = async (
   if (batch === null) return [];
   const parsed = batchImportSchema.safeParse(batch.payload);
   if (!parsed.success) {
-    await d.db.importBatch.update({ where: { id: batchId }, data: { status: 'failed', completedAt: d.clock.now() } });
+    await d.db.importBatch.update({
+      where: { id: batchId },
+      data: { status: 'failed', completedAt: d.clock.now() },
+    });
     return [];
   }
   const results: BatchItemResult[] = [];
@@ -46,7 +54,12 @@ export const processImportBatch = async (
     const r = await importOrder(d, fx, batch.shopId, order);
     results.push(
       r.ok
-        ? { externalNumber: order.externalNumber, ok: true, orderId: r.value.orderId, created: r.value.created }
+        ? {
+            externalNumber: order.externalNumber,
+            ok: true,
+            orderId: r.value.orderId,
+            created: r.value.created,
+          }
         : { externalNumber: order.externalNumber, ok: false, code: r.error.code, message: r.error.message },
     );
   }

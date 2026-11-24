@@ -37,7 +37,11 @@ export class AuthController {
   @RateLimit('login')
   @Ok(SessionDto)
   @ApiErrors(401)
-  async refresh(@Body() body: RefreshDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<SessionDto> {
+  async refresh(
+    @Body() body: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<SessionDto> {
     const token = body.refreshToken ?? (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
     return this.session(unwrap(await this.auth.refresh(token)), res);
   }
@@ -46,8 +50,14 @@ export class AuthController {
   @HttpCode(204)
   @Public()
   @ApiErrors()
-  async logout(@Body() body: RefreshDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
-    await this.auth.logout(body.refreshToken ?? (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE]);
+  async logout(
+    @Body() body: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    await this.auth.logout(
+      body.refreshToken ?? (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE],
+    );
     res.clearCookie(REFRESH_COOKIE, refreshCookieOptions(this.env));
   }
 
@@ -60,7 +70,15 @@ export class AuthController {
   }
 
   private session(s: Session, res: Response): SessionDto {
-    res.cookie(REFRESH_COOKIE, s.refreshToken, { ...refreshCookieOptions(this.env), maxAge: this.env.JWT_REFRESH_TTL_SEC * 1000 });
-    return { accessToken: s.accessToken, expiresIn: s.expiresIn, refreshToken: s.refreshToken, me: toMe(s.principal) };
+    res.cookie(REFRESH_COOKIE, s.refreshToken, {
+      ...refreshCookieOptions(this.env),
+      maxAge: this.env.JWT_REFRESH_TTL_SEC * 1000,
+    });
+    return {
+      accessToken: s.accessToken,
+      expiresIn: s.expiresIn,
+      refreshToken: s.refreshToken,
+      me: toMe(s.principal),
+    };
   }
 }

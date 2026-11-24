@@ -17,7 +17,9 @@ export const skuSchema = z.object({
   tracksExpiry: z.boolean(),
 });
 export class SkuDto extends createZodDto(skuSchema) {}
-export class SkuPageDto extends createZodDto(z.object({ items: z.array(skuSchema), nextCursor: z.string().nullable() })) {}
+export class SkuPageDto extends createZodDto(
+  z.object({ items: z.array(skuSchema), nextCursor: z.string().nullable() }),
+) {}
 
 export const skuQuerySchema = z
   .object({

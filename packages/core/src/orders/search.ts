@@ -56,7 +56,10 @@ export const searchOrders = async (db: Db, s: OrderSearchQuery): Promise<Result<
           WHERE l.sku_id IN (SELECT id FROM skus WHERE lower(code) = ${q} OR lower(barcode) = ${q}
                              ${s.shopId === undefined ? Prisma.empty : Prisma.sql`AND shop_id = ${s.shopId}::uuid`})`;
   const cur = decodeCursor(s.cursor, 2);
-  if (s.cursor !== undefined && (cur === null || Number.isNaN(Date.parse(cur[0] ?? '')) || !UUID_RE.test(cur[1] ?? ''))) {
+  if (
+    s.cursor !== undefined &&
+    (cur === null || Number.isNaN(Date.parse(cur[0] ?? '')) || !UUID_RE.test(cur[1] ?? ''))
+  ) {
     return fail('VALIDATION_FAILED', 'invalid cursor');
   }
   const rows = await db.$queryRaw<Raw[]>`
@@ -70,23 +73,24 @@ export const searchOrders = async (db: Db, s: OrderSearchQuery): Promise<Result<
       ${cur === null ? Prisma.empty : Prisma.sql`AND (o.received_at, o.id) < (${new Date(cur[0] ?? '')}, ${cur[1] ?? ''}::uuid)`}
     ORDER BY o.received_at DESC, o.id DESC
     LIMIT ${s.limit + 1}`;
-  const items = rows.slice(0, s.limit).map(
-    (r): OrderListItem => ({
-      id: r.id,
-      shopId: r.shop_id,
-      externalNumber: r.external_number,
-      status: r.status,
-      deliveryMethod: r.delivery_method,
-      customerName: r.customer_name,
-      warehouseId: r.warehouse_id,
-      receivedAt: r.received_at,
-      targetCutoffAt: r.target_cutoff_at,
-      shipDay: r.ship_day,
-    }),
-  );
+  const items = rows.slice(0, s.limit).map((r): OrderListItem => ({
+    id: r.id,
+    shopId: r.shop_id,
+    externalNumber: r.external_number,
+    status: r.status,
+    deliveryMethod: r.delivery_method,
+    customerName: r.customer_name,
+    warehouseId: r.warehouse_id,
+    receivedAt: r.received_at,
+    targetCutoffAt: r.target_cutoff_at,
+    shipDay: r.ship_day,
+  }));
   const last = items[items.length - 1];
   return ok({
     items,
-    nextCursor: rows.length > s.limit && last !== undefined ? encodeCursor([last.receivedAt.toISOString(), last.id]) : null,
+    nextCursor:
+      rows.length > s.limit && last !== undefined
+        ? encodeCursor([last.receivedAt.toISOString(), last.id])
+        : null,
   });
 };

@@ -19,7 +19,10 @@ describe('login', () => {
   it('wrong password and unknown user fail identically', async () => {
     const s = await makeStaff(api, admin, []);
     const wrong = await api.post('/api/auth/login', { email: s.email, password: 'nope-nope-nope' });
-    const unknown = await api.post('/api/auth/login', { email: 'ghost@test.local', password: 'nope-nope-nope' });
+    const unknown = await api.post('/api/auth/login', {
+      email: 'ghost@test.local',
+      password: 'nope-nope-nope',
+    });
     expect([wrong.status, unknown.status]).toEqual([401, 401]);
     expect({ ...wrong.body.error, requestId: 'x' }).toEqual({ ...unknown.body.error, requestId: 'x' });
   });
@@ -36,7 +39,9 @@ describe('access tokens', () => {
   it('alg none, wrong secret and a forged subject are refused', async () => {
     const s = await makeStaff(api, admin, []);
     const decoded = jwt.decode(s.token) as Record<string, unknown>;
-    const none = jwt.sign({ ...decoded, sub: '00000000-0000-4000-8000-000000000000' }, '', { algorithm: 'none' });
+    const none = jwt.sign({ ...decoded, sub: '00000000-0000-4000-8000-000000000000' }, '', {
+      algorithm: 'none',
+    });
     const wrongSecret = jwt.sign(decoded, 'z'.repeat(48), { algorithm: 'HS256' });
     for (const token of [none, wrongSecret, `${s.token}x`, 'garbage-token-value']) {
       const r = await api.get('/api/auth/me', { token });
@@ -74,14 +79,18 @@ describe('refresh tokens', () => {
     expect(second.body.refreshToken).not.toBe(r1);
     const reuse = await api.post('/api/auth/refresh', { refreshToken: r1 });
     expect([reuse.status, reuse.body.error.code]).toEqual([401, 'TOKEN_REUSED']);
-    expect((await api.post('/api/auth/refresh', { refreshToken: second.body.refreshToken })).status).toBe(401);
+    expect((await api.post('/api/auth/refresh', { refreshToken: second.body.refreshToken })).status).toBe(
+      401,
+    );
     expect((await api.get('/api/auth/me', { token: second.body.accessToken })).status).toBe(401);
   });
 
   it('parallel refresh with one token: at most one succeeds', async () => {
     const s = await makeStaff(api, admin, []);
     const r = (await api.post('/api/auth/login', { email: s.email, password: PASSWORD })).body.refreshToken;
-    const res = await Promise.all(Array.from({ length: 5 }, () => api.post('/api/auth/refresh', { refreshToken: r })));
+    const res = await Promise.all(
+      Array.from({ length: 5 }, () => api.post('/api/auth/refresh', { refreshToken: r })),
+    );
     expect(res.filter((x) => x.status === 200).length).toBeLessThanOrEqual(1);
   });
 

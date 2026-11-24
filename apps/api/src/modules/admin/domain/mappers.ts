@@ -1,5 +1,12 @@
 // Row -> response mappers for admin resources (never leak hashes or encrypted secrets).
-import { type Location, type Shop, type ShopApiKey, type Staff, type StaffRoleAssignment, type Warehouse } from '@ff/db/client';
+import {
+  type Location,
+  type Shop,
+  type ShopApiKey,
+  type Staff,
+  type StaffRoleAssignment,
+  type Warehouse,
+} from '@ff/db/client';
 
 export const toWarehouse = (w: Warehouse) => ({
   id: w.id,

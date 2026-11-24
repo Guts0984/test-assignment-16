@@ -31,14 +31,16 @@ export class RateLimitGuard implements CanActivate {
     if (bucket === 'login') {
       checks.push(['login-ip', ip, this.env.RATE_LIMIT_LOGIN_PER_IP]);
       const email = (req.body as { email?: unknown } | undefined)?.email;
-      if (typeof email === 'string') checks.push(['login-account', email.toLowerCase(), this.env.RATE_LIMIT_LOGIN_PER_ACCOUNT]);
+      if (typeof email === 'string')
+        checks.push(['login-account', email.toLowerCase(), this.env.RATE_LIMIT_LOGIN_PER_ACCOUNT]);
     }
     const p = req.principal;
     if (p?.kind === 'api_key') {
       checks.push(['shop-key', p.id, this.env.RATE_LIMIT_SHOP_API_PER_KEY]);
       checks.push(['shop-ip', ip, this.env.RATE_LIMIT_SHOP_API_PER_IP]);
     }
-    if (bucket === 'scan' && p?.kind === 'staff') checks.push(['scan', p.id, this.env.RATE_LIMIT_SCAN_PER_STAFF]);
+    if (bucket === 'scan' && p?.kind === 'staff')
+      checks.push(['scan', p.id, this.env.RATE_LIMIT_SCAN_PER_STAFF]);
     for (const [name, subject, limit] of checks) {
       const d = await this.l.limiter.consume(name, subject, limit);
       if (!d.allowed) throw rejected(res, d);

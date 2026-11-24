@@ -22,7 +22,8 @@ const parseRedisUrl = (url: string): RedisOptions => {
   };
 };
 
-export const createRedis = (url: string, name: string): Redis => new Redis({ ...redisOptions(url), connectionName: name });
+export const createRedis = (url: string, name: string): Redis =>
+  new Redis({ ...redisOptions(url), connectionName: name });
 
 /** Emits to Socket.IO rooms from any process via the Redis adapter's pub/sub channel. */
 export const createRedisEmitter = (redis: Redis): Emitter => {

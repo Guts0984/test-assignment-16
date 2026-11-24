@@ -49,11 +49,18 @@ export class OrdersService {
   async batch(shopId: string, id: string) {
     const b = await this.db.importBatch.findFirst({ where: { id, shopId } });
     if (b === null) return fail('NOT_FOUND', 'import batch not found');
-    return ok({ id: b.id, status: b.status as 'pending' | 'done' | 'failed', results: (b.results ?? null) as never });
+    return ok({
+      id: b.id,
+      status: b.status as 'pending' | 'done' | 'failed',
+      results: (b.results ?? null) as never,
+    });
   }
 
   async search(q: OrderSearchQuery) {
-    return map(await searchOrders(this.db, q), (p) => ({ items: p.items.map(toListItem), nextCursor: p.nextCursor }));
+    return map(await searchOrders(this.db, q), (p) => ({
+      items: p.items.map(toListItem),
+      nextCursor: p.nextCursor,
+    }));
   }
 
   detail(id: string, scope: OrderScope): Promise<Result<unknown>> {

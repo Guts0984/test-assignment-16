@@ -78,7 +78,8 @@ export const escapeLike = (s: string): string => s.replace(/[\\%_]/g, (c) => `\\
 
 export type Page<T> = { readonly items: readonly T[]; readonly nextCursor: string | null };
 
-export const encodeCursor = (parts: readonly string[]): string => Buffer.from(parts.join('\u0001')).toString('base64url');
+export const encodeCursor = (parts: readonly string[]): string =>
+  Buffer.from(parts.join('\u0001')).toString('base64url');
 export const decodeCursor = (c: string | undefined, n: number): readonly string[] | null => {
   if (c === undefined) return null;
   const parts = Buffer.from(c, 'base64url').toString('utf8').split('\u0001');

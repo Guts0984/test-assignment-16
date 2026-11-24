@@ -21,6 +21,8 @@ export default defineConfig({
     server: { deps: { inline: [/@ff\//] } },
     globalSetup: ['test/setup/global-setup.ts'],
     env: { DATABASE_URL: db, REDIS_URL: redis, NODE_ENV: 'test' },
+    // Files share one database and drain each other's due background actions: run them one at a time.
+    fileParallelism: false,
     testTimeout: 60_000,
     hookTimeout: 300_000,
   },

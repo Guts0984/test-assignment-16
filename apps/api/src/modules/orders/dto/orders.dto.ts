@@ -7,7 +7,11 @@ export class CreateOrderDto extends createZodDto(createOrderSchema) {}
 export class BatchImportDto extends createZodDto(batchImportSchema) {}
 export class OrderSearchDto extends createZodDto(orderSearchSchema) {}
 
-export const importResultSchema = z.object({ orderId: z.string().uuid(), created: z.boolean(), status: z.enum(ORDER_STATUSES) });
+export const importResultSchema = z.object({
+  orderId: z.string().uuid(),
+  created: z.boolean(),
+  status: z.enum(ORDER_STATUSES),
+});
 export class ImportResultDto extends createZodDto(importResultSchema) {}
 export class BatchAcceptedDto extends createZodDto(z.object({ batchId: z.string().uuid() })) {}
 export class ImportBatchDto extends createZodDto(
@@ -41,7 +45,9 @@ export const orderListItemSchema = z.object({
   targetCutoffAt: z.string().nullable(),
   shipDay: z.string().nullable(),
 });
-export class OrderPageDto extends createZodDto(z.object({ items: z.array(orderListItemSchema), nextCursor: z.string().nullable() })) {}
+export class OrderPageDto extends createZodDto(
+  z.object({ items: z.array(orderListItemSchema), nextCursor: z.string().nullable() }),
+) {}
 
 export const orderDetailSchema = orderListItemSchema.extend({
   statusVersion: z.number().int(),

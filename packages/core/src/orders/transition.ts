@@ -19,7 +19,14 @@ export type LockedOrder = {
 
 export const lockOrder = async (tx: Tx, orderId: string): Promise<LockedOrder | null> => {
   const [r] = await tx.$queryRaw<
-    { id: string; shop_id: string; warehouse_id: string | null; status: OrderStatus; status_version: number; external_number: string }[]
+    {
+      id: string;
+      shop_id: string;
+      warehouse_id: string | null;
+      status: OrderStatus;
+      status_version: number;
+      external_number: string;
+    }[]
   >`SELECT id, shop_id, warehouse_id, status, status_version, external_number FROM orders WHERE id = ${orderId}::uuid FOR UPDATE`;
   return r === undefined
     ? null

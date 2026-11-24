@@ -9,7 +9,12 @@ import { testEnv } from '../setup/test-env';
 let redisA: Redis;
 let redisB: Redis;
 beforeAll(async () => {
-  const fast = { ...redisOptions(testEnv.REDIS_URL), maxRetriesPerRequest: 1, enableOfflineQueue: false, lazyConnect: true };
+  const fast = {
+    ...redisOptions(testEnv.REDIS_URL),
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    lazyConnect: true,
+  };
   redisA = new Redis(fast);
   redisB = new Redis(fast);
   await Promise.all([redisA.connect(), redisB.connect()]);
@@ -38,7 +43,9 @@ describe('rate limiter on real Redis', () => {
     const prefix = uniq();
     const a = createRateLimiter({ redis: redisA, windowMs: 60_000, prefix });
     const b = createRateLimiter({ redis: redisB, windowMs: 60_000, prefix });
-    const res = await Promise.all(Array.from({ length: 500 }, (_, i) => (i % 2 ? a : b).consume('api', 'key-1', 50)));
+    const res = await Promise.all(
+      Array.from({ length: 500 }, (_, i) => (i % 2 ? a : b).consume('api', 'key-1', 50)),
+    );
     expect(res.filter((r) => r.allowed)).toHaveLength(50);
     expect(res.some((r) => r.degraded)).toBe(false);
   });
@@ -77,7 +84,14 @@ describe('rate limiter on real Redis', () => {
   });
 
   it('Redis down: fails open to a local limiter with the same limit (degraded)', async () => {
-    const dead = new Redis({ host: '127.0.0.1', port: 1, maxRetriesPerRequest: 0, enableOfflineQueue: false, lazyConnect: true, retryStrategy: () => null });
+    const dead = new Redis({
+      host: '127.0.0.1',
+      port: 1,
+      maxRetriesPerRequest: 0,
+      enableOfflineQueue: false,
+      lazyConnect: true,
+      retryStrategy: () => null,
+    });
     try {
       const l = createRateLimiter({ redis: dead, windowMs: 60_000, prefix: uniq(), redisTimeoutMs: 100 });
       const res = [];

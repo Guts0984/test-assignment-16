@@ -12,7 +12,12 @@ export const inboundSchema = z.object({
   createdAt: z.string(),
   lines: z.array(z.object({ skuId: z.string().uuid(), skuCode: z.string(), expectedQty: z.number().int() })),
   discrepancies: z.array(
-    z.object({ skuId: z.string().uuid(), skuCode: z.string(), expectedQty: z.number().int(), receivedQty: z.number().int() }),
+    z.object({
+      skuId: z.string().uuid(),
+      skuCode: z.string(),
+      expectedQty: z.number().int(),
+      receivedQty: z.number().int(),
+    }),
   ),
 });
 export class InboundDto extends createZodDto(inboundSchema) {}

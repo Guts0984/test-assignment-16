@@ -23,7 +23,9 @@ export const startSharedTestClock = async (databaseUrl: string): Promise<SharedT
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   const refresh = async (): Promise<number> => {
-    const r = await client.query<{ offset_ms: string }>('SELECT offset_ms::text FROM test_clock WHERE id = 1');
+    const r = await client.query<{ offset_ms: string }>(
+      'SELECT offset_ms::text FROM test_clock WHERE id = 1',
+    );
     state.offset = Number(r.rows[0]?.offset_ms ?? 0);
     return state.offset;
   };
@@ -50,9 +52,7 @@ export const startSharedTestClock = async (databaseUrl: string): Promise<SharedT
 };
 
 export type ClockChange =
-  | { readonly setTo: Date }
-  | { readonly advanceMs: number }
-  | { readonly reset: true };
+  { readonly setTo: Date } | { readonly advanceMs: number } | { readonly reset: true };
 
 /** Changes the shared test clock; returns the new offset. */
 export const changeTestClock = async (db: Db, change: ClockChange): Promise<number> => {
@@ -64,6 +64,8 @@ export const changeTestClock = async (db: Db, change: ClockChange): Promise<numb
       : 'advanceMs' in change
         ? await db.$queryRaw<{ offset_ms: string }[]>`
             UPDATE test_clock SET offset_ms = offset_ms + ${change.advanceMs}::bigint WHERE id = 1 RETURNING offset_ms::text`
-        : await db.$queryRaw<{ offset_ms: string }[]>`UPDATE test_clock SET offset_ms = 0 WHERE id = 1 RETURNING offset_ms::text`;
+        : await db.$queryRaw<
+            { offset_ms: string }[]
+          >`UPDATE test_clock SET offset_ms = 0 WHERE id = 1 RETURNING offset_ms::text`;
   return Number(row?.offset_ms ?? 0);
 };

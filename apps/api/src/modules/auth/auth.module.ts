@@ -8,7 +8,11 @@ import { AuthService } from './auth.service';
 @Global()
 @Module({
   controllers: [AuthController],
-  providers: [AuthService, { provide: APP_GUARD, useClass: AuthGuard }, { provide: APP_GUARD, useClass: RateLimitGuard }],
+  providers: [
+    AuthService,
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RateLimitGuard },
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

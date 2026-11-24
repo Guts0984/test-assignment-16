@@ -30,4 +30,6 @@ export const skuStockSchema = z.object({
   skuName: z.string(),
   warehouses: z.array(warehouseStockSchema),
 });
-export class StockPageDto extends createZodDto(z.object({ items: z.array(skuStockSchema), nextCursor: z.string().nullable(), asOf: z.string() })) {}
+export class StockPageDto extends createZodDto(
+  z.object({ items: z.array(skuStockSchema), nextCursor: z.string().nullable(), asOf: z.string() }),
+) {}

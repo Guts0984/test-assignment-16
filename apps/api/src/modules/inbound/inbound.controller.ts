@@ -16,17 +16,26 @@ type ShopPrincipal = ShopUserPrincipal | ApiKeyPrincipal;
 export class InboundController {
   constructor(private readonly inbound: InboundService) {}
 
-  @Post() @ShopAccess() @Created(InboundDto) @ApiProtectedErrors(404, 409, 422)
+  @Post()
+  @ShopAccess()
+  @Created(InboundDto)
+  @ApiProtectedErrors(404, 409, 422)
   async create(@CurrentPrincipal() p: ShopPrincipal, @Body() b: CreateInboundDto) {
     return unwrap(await this.inbound.create(p.shopId, b));
   }
 
-  @Get() @ShopAccess() @Ok(InboundListDto) @ApiProtectedErrors()
+  @Get()
+  @ShopAccess()
+  @Ok(InboundListDto)
+  @ApiProtectedErrors()
   list(@CurrentPrincipal() p: ShopPrincipal) {
     return this.inbound.list(p.shopId);
   }
 
-  @Get(':id') @ShopAccess() @Ok(InboundDto) @ApiProtectedErrors(404)
+  @Get(':id')
+  @ShopAccess()
+  @Ok(InboundDto)
+  @ApiProtectedErrors(404)
   async get(@CurrentPrincipal() p: ShopPrincipal, @Param('id', UUID) id: string) {
     return unwrap(await this.inbound.get(p.shopId, id));
   }

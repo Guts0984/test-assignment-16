@@ -1,0 +1,76 @@
+// Runs one scheduled action exactly once in effect: claim with a lease (only one worker wins),
+// run an idempotent handler, finish (or record the failure with backoff; dead after N attempts).
+import { withTx } from '@ff/db/tx';
+import { backoffMs } from '@ff/shared/rules/webhook';
+import { flushEffects, newEffects, type Effects } from '../effects';
+import { type FloorDeps } from '../floor/context';
+import { type Queues } from '../queues';
+import { type Emitter } from '../realtime';
+import {
+  claimAction,
+  dueActions,
+  failClaim,
+  finishClaim,
+  type ActionKind,
+  type ActionRow,
+} from '../scheduled-actions';
+
+export type JobSettings = {
+  readonly leaseMs: number;
+  readonly maxAttempts: number;
+  readonly backoffBaseMs: number;
+  readonly backoffMaxMs: number;
+};
+
+export type Handler = (row: ActionRow, fx: Effects) => Promise<{ readonly next: Date | null }>;
+
+export type JobDeps = FloorDeps & {
+  readonly emitter: Emitter;
+  readonly queues: Queues | null;
+  readonly jobs: JobSettings;
+  readonly handlers: Partial<Record<ActionKind, Handler>>;
+};
+
+export type RunOutcome = 'done' | 'skipped' | 'retry' | 'dead';
+
+export const processAction = async (d: JobDeps, actionId: string, workerId: string): Promise<RunOutcome> => {
+  const claim = await claimAction(d.db, actionId, workerId, d.clock.now(), d.jobs.leaseMs);
+  if (claim === null) return 'skipped';
+  const handler = d.handlers[claim.row.kind];
+  const fx = newEffects();
+  try {
+    if (handler === undefined) throw new Error(`no handler for ${claim.row.kind}`);
+    const { next } = await handler(claim.row, fx);
+    const finished = await withTx(d.db, (tx) =>
+      finishClaim(tx, claim, next === null ? null : { dueAt: next }),
+    );
+    await flushEffects(d, fx);
+    return finished ? 'done' : 'skipped';
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return failClaim(
+      d.db,
+      claim,
+      message,
+      d.clock.now(),
+      d.jobs.maxAttempts,
+      backoffMs(claim.row.attempts + 1, d.jobs.backoffBaseMs, d.jobs.backoffMaxMs),
+    );
+  }
+};
+
+/** Processes every due action in-process until none is left (tests and catch-up). */
+export const drainDue = async (
+  d: JobDeps,
+  workerId: string,
+  kinds?: readonly ActionKind[],
+  maxRounds = 50,
+): Promise<number> => {
+  const total = { n: 0 };
+  for (let round = 0; round < maxRounds; round += 1) {
+    const due = await dueActions(d.db, d.clock.now(), 500, kinds);
+    if (due.length === 0) break;
+    for (const r of due) if ((await processAction(d, r.id, workerId)) === 'done') total.n += 1;
+  }
+  return total.n;
+};

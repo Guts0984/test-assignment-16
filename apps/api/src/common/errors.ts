@@ -10,8 +10,11 @@ export type ErrorPayload = {
   readonly details?: Readonly<Record<string, unknown>>;
 };
 
-export const httpError = (code: ErrorCode, message: string, extra: Partial<ErrorPayload> = {}): HttpException =>
-  new HttpException({ __ff: true, code, message, ...extra }, httpStatusFor(code));
+export const httpError = (
+  code: ErrorCode,
+  message: string,
+  extra: Partial<ErrorPayload> = {},
+): HttpException => new HttpException({ __ff: true, code, message, ...extra }, httpStatusFor(code));
 
 export const fromDomain = (e: DomainError): HttpException =>
   httpError(e.code, e.message, e.details === undefined ? {} : { details: e.details });

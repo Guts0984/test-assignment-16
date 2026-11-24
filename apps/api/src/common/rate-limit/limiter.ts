@@ -33,13 +33,22 @@ export type LimiterDeps = {
 const subjectKey = (s: string): string => createHash('sha256').update(s).digest('hex').slice(0, 32);
 
 const timeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
-  Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('redis timeout')), ms).unref())]);
+  Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('redis timeout')), ms).unref()),
+  ]);
 
 export const createRateLimiter = (d: LimiterDeps): RateLimiter => {
   const now = d.now ?? Date.now;
   const prefix = d.prefix ?? 'rl';
   const local = new Map<string, number>();
-  const decide = (n: number, limit: number, windowEnd: number, t: number, degraded: boolean): LimitDecision => ({
+  const decide = (
+    n: number,
+    limit: number,
+    windowEnd: number,
+    t: number,
+    degraded: boolean,
+  ): LimitDecision => ({
     allowed: n <= limit,
     limit,
     remaining: Math.max(0, limit - n),
@@ -61,7 +70,9 @@ export const createRateLimiter = (d: LimiterDeps): RateLimiter => {
       const windowEnd = (windowIdx + 1) * d.windowMs;
       const key = `${prefix}:${bucket}:${subjectKey(subject)}:${windowIdx}`;
       try {
-        const n = Number(await timeout(d.redis.eval(LUA, 1, key, String(d.windowMs * 2)), d.redisTimeoutMs ?? 250));
+        const n = Number(
+          await timeout(d.redis.eval(LUA, 1, key, String(d.windowMs * 2)), d.redisTimeoutMs ?? 250),
+        );
         return decide(n, limit, windowEnd, t, false);
       } catch {
         return decide(localConsume(key, windowIdx), limit, windowEnd, t, true);

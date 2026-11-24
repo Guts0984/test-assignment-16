@@ -44,78 +44,124 @@ export class AdminController {
     private readonly staff: AdminStaffService,
   ) {}
 
-  @Post('warehouses') @AdminOnly() @Created(WarehouseDto) @ApiProtectedErrors(409)
+  @Post('warehouses')
+  @AdminOnly()
+  @Created(WarehouseDto)
+  @ApiProtectedErrors(409)
   async createWarehouse(@Body() b: CreateWarehouseDto) {
     return unwrap(await this.warehouses.create(b));
   }
 
-  @Get('warehouses') @AdminOnly() @Ok(WarehouseListDto) @ApiProtectedErrors()
+  @Get('warehouses')
+  @AdminOnly()
+  @Ok(WarehouseListDto)
+  @ApiProtectedErrors()
   listWarehouses() {
     return this.warehouses.list('all');
   }
 
-  @Patch('warehouses/:id') @AdminOnly() @Ok(WarehouseDto) @ApiProtectedErrors(404)
+  @Patch('warehouses/:id')
+  @AdminOnly()
+  @Ok(WarehouseDto)
+  @ApiProtectedErrors(404)
   async updateWarehouse(@Param('id', UUID) id: string, @Body() b: UpdateWarehouseDto) {
     return unwrap(await this.warehouses.update(id, b));
   }
 
-  @Post('warehouses/:id/zones') @AdminOnly() @Created(ZoneDto) @ApiProtectedErrors(404, 409)
+  @Post('warehouses/:id/zones')
+  @AdminOnly()
+  @Created(ZoneDto)
+  @ApiProtectedErrors(404, 409)
   async createZone(@Param('id', UUID) id: string, @Body() b: CreateZoneDto) {
     return unwrap(await this.warehouses.createZone(id, b.code, b.name));
   }
 
-  @Post('zones/:zoneId/cells') @AdminOnly() @Created(CreatedCellsDto) @ApiProtectedErrors(404, 409)
+  @Post('zones/:zoneId/cells')
+  @AdminOnly()
+  @Created(CreatedCellsDto)
+  @ApiProtectedErrors(404, 409)
   async createCells(@Param('zoneId', UUID) zoneId: string, @Body() b: CreateCellsDto) {
     return unwrap(await this.warehouses.createCells(zoneId, b));
   }
 
-  @Post('shops') @AdminOnly() @Created(CreatedShopDto) @ApiProtectedErrors(409)
+  @Post('shops')
+  @AdminOnly()
+  @Created(CreatedShopDto)
+  @ApiProtectedErrors(409)
   async createShop(@Body() b: CreateShopDto) {
     return unwrap(await this.shops.create(b));
   }
 
-  @Get('shops') @AdminOnly() @Ok(ShopListDto) @ApiProtectedErrors()
+  @Get('shops')
+  @AdminOnly()
+  @Ok(ShopListDto)
+  @ApiProtectedErrors()
   listShops() {
     return this.shops.list();
   }
 
-  @Patch('shops/:id') @AdminOnly() @Ok(ShopDto) @ApiProtectedErrors(404)
+  @Patch('shops/:id')
+  @AdminOnly()
+  @Ok(ShopDto)
+  @ApiProtectedErrors(404)
   async updateShop(@Param('id', UUID) id: string, @Body() b: UpdateShopDto) {
     return unwrap(await this.shops.update(id, b));
   }
 
-  @Post('shops/:id/api-keys') @AdminOnly() @Created(CreatedApiKeyDto) @ApiProtectedErrors(404)
+  @Post('shops/:id/api-keys')
+  @AdminOnly()
+  @Created(CreatedApiKeyDto)
+  @ApiProtectedErrors(404)
   async createKey(@Param('id', UUID) id: string) {
     return unwrap(await this.shops.createKey(id, 'admin'));
   }
 
-  @Get('shops/:id/api-keys') @AdminOnly() @Ok(ApiKeyListDto) @ApiProtectedErrors()
+  @Get('shops/:id/api-keys')
+  @AdminOnly()
+  @Ok(ApiKeyListDto)
+  @ApiProtectedErrors()
   listKeys(@Param('id', UUID) id: string) {
     return this.shops.listKeys(id);
   }
 
-  @Post('shops/:id/api-keys/:keyId/revoke') @HttpCode(200) @AdminOnly() @Ok(ApiKeyListDto) @ApiProtectedErrors(404)
+  @Post('shops/:id/api-keys/:keyId/revoke')
+  @HttpCode(200)
+  @AdminOnly()
+  @Ok(ApiKeyListDto)
+  @ApiProtectedErrors(404)
   async revokeKey(@Param('id', UUID) id: string, @Param('keyId', UUID) keyId: string) {
     unwrap(await this.shops.revokeKey(id, keyId));
     return this.shops.listKeys(id);
   }
 
-  @Post('shops/:id/users') @AdminOnly() @Created(ShopUserDto) @ApiProtectedErrors(404, 409)
+  @Post('shops/:id/users')
+  @AdminOnly()
+  @Created(ShopUserDto)
+  @ApiProtectedErrors(404, 409)
   async createShopUser(@Param('id', UUID) id: string, @Body() b: CreateShopUserDto) {
     return unwrap(await this.shops.createUser(id, b));
   }
 
-  @Post('staff') @AdminOnly() @Created(StaffDto) @ApiProtectedErrors(409)
+  @Post('staff')
+  @AdminOnly()
+  @Created(StaffDto)
+  @ApiProtectedErrors(409)
   async createStaff(@Body() b: CreateStaffDto) {
     return unwrap(await this.staff.create(b));
   }
 
-  @Get('staff') @AdminOnly() @Ok(StaffListDto) @ApiProtectedErrors()
+  @Get('staff')
+  @AdminOnly()
+  @Ok(StaffListDto)
+  @ApiProtectedErrors()
   listStaff() {
     return this.staff.list();
   }
 
-  @Patch('staff/:id') @AdminOnly() @Ok(StaffDto) @ApiProtectedErrors(404)
+  @Patch('staff/:id')
+  @AdminOnly()
+  @Ok(StaffDto)
+  @ApiProtectedErrors(404)
   async updateStaff(@Param('id', UUID) id: string, @Body() b: UpdateStaffDto) {
     return unwrap(await this.staff.update(id, b));
   }
@@ -127,7 +173,10 @@ export class AdminController {
 export class WarehousesController {
   constructor(private readonly warehouses: AdminWarehousesService) {}
 
-  @Get() @StaffAccess([]) @Ok(WarehouseListDto) @ApiProtectedErrors()
+  @Get()
+  @StaffAccess([])
+  @Ok(WarehouseListDto)
+  @ApiProtectedErrors()
   mine(@CurrentPrincipal() p: Principal) {
     return this.warehouses.list(warehousesOf(p));
   }

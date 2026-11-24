@@ -2,7 +2,14 @@
 import { Queue, type ConnectionOptions } from 'bullmq';
 import { type ActionKind } from './scheduled-actions';
 
-export const QUEUE_NAMES = ['order-import', 'reservation', 'waves', 'webhooks', 'reserve-expiry', 'nightly'] as const;
+export const QUEUE_NAMES = [
+  'order-import',
+  'reservation',
+  'waves',
+  'webhooks',
+  'reserve-expiry',
+  'nightly',
+] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
 export const QUEUE_OF: Readonly<Record<ActionKind, QueueName>> = {

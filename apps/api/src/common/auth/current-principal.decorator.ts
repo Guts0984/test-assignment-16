@@ -11,5 +11,6 @@ export const CurrentPrincipal = createParamDecorator((_: unknown, ctx: Execution
 
 /** The resolved real client IP (set by the request middleware). */
 export const ClientIp = createParamDecorator(
-  (_: unknown, ctx: ExecutionContext): string => ctx.switchToHttp().getRequest<{ clientIp?: string }>().clientIp ?? 'unknown',
+  (_: unknown, ctx: ExecutionContext): string =>
+    ctx.switchToHttp().getRequest<{ clientIp?: string }>().clientIp ?? 'unknown',
 );

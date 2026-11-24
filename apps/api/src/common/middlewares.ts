@@ -39,8 +39,10 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 /** Bodies must be JSON; anything else is 415 (no silent coercion of form or text bodies). */
 export const requireJson: RequestHandler = (req: Req, res, next) => {
-  const hasBody = Number(req.headers['content-length'] ?? 0) > 0 || req.headers['transfer-encoding'] !== undefined;
-  if (!BODY_METHODS.has(req.method) || !hasBody || req.is('application/json') === 'application/json') return next();
+  const hasBody =
+    Number(req.headers['content-length'] ?? 0) > 0 || req.headers['transfer-encoding'] !== undefined;
+  if (!BODY_METHODS.has(req.method) || !hasBody || req.is('application/json') === 'application/json')
+    return next();
   sendError(req, res, 'UNSUPPORTED_MEDIA_TYPE', 'request body must be application/json');
 };
 
@@ -60,7 +62,8 @@ export const jsonBody = (limitBytes: number): RequestHandler => {
     parse(req, res, (err?: unknown) => {
       if (err === undefined || err === null) return next();
       const type = (err as { type?: string }).type;
-      if (type === 'entity.too.large') return sendError(req, res, 'PAYLOAD_TOO_LARGE', 'request body too large');
+      if (type === 'entity.too.large')
+        return sendError(req, res, 'PAYLOAD_TOO_LARGE', 'request body too large');
       if (type === 'charset.unsupported' || type === 'encoding.unsupported') {
         return sendError(req, res, 'UNSUPPORTED_MEDIA_TYPE', 'unsupported body encoding');
       }

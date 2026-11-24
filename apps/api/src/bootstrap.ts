@@ -13,25 +13,38 @@ import { ipRateLimit, jsonBody, requestContext, requireJson } from './common/mid
 import { type RateLimiter } from './common/rate-limit/limiter';
 import { type TrustedProxies } from './common/client-ip';
 import { apiEnv, type ApiEnv } from './config/env';
-import { LIMITER, TRUSTED_PROXIES } from './infra/tokens';
+import { LIMITER, REDIS, TRUSTED_PROXIES } from './infra/tokens';
+import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
+import { type Redis } from 'ioredis';
 
 export const buildOpenApi = (app: INestApplication): OpenAPIObject =>
   cleanupOpenApiDoc(
     SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder()
-      .setTitle('Fulfillment API')
-      .setDescription('Warehouse fulfillment for online shops. Every error uses the shared error body.')
-      .setVersion('1.0.0')
-      .addBearerAuth({ type: 'http', scheme: 'bearer', description: 'Staff/shop JWT or shop API key (fk_...)' })
-      .build(),
+      app,
+      new DocumentBuilder()
+        .setTitle('Fulfillment API')
+        .setDescription('Warehouse fulfillment for online shops. Every error uses the shared error body.')
+        .setVersion('1.0.0')
+        .addBearerAuth({
+          type: 'http',
+          scheme: 'bearer',
+          description: 'Staff/shop JWT or shop API key (fk_...)',
+        })
+        .build(),
     ),
   );
 
 export const createApp = async (env: ApiEnv = apiEnv()): Promise<NestExpressApplication> => {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.register(env), {
     bodyParser: false,
-    logger: env.LOG_LEVEL === 'silent' ? false : ['error', 'warn', ...(env.LOG_LEVEL === 'info' || env.LOG_LEVEL === 'debug' ? (['log'] as const) : [])],
+    logger:
+      env.LOG_LEVEL === 'silent'
+        ? false
+        : [
+            'error',
+            'warn',
+            ...(env.LOG_LEVEL === 'info' || env.LOG_LEVEL === 'debug' ? (['log'] as const) : []),
+          ],
   });
   app.disable('x-powered-by');
   app.set('trust proxy', false);
@@ -43,10 +56,16 @@ export const createApp = async (env: ApiEnv = apiEnv()): Promise<NestExpressAppl
   app.use(requireJson);
   app.use(jsonBody(env.BODY_LIMIT_BYTES));
   app.use(cookieParser());
-  const origins = new Set(env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter((s) => s.length > 0));
+  const origins = new Set(
+    env.CORS_ORIGINS.split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+  );
   app.enableCors({ origin: (o, cb) => cb(null, o !== undefined && origins.has(o)), credentials: true });
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new AllExceptionsFilter());
+  const redis = app.get<Redis>(REDIS);
+  app.useWebSocketAdapter(new RedisIoAdapter(app, redis.duplicate(), redis.duplicate()));
   app.enableShutdownHooks();
   SwaggerModule.setup('docs', app, buildOpenApi(app));
   return app;

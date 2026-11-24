@@ -70,8 +70,16 @@ export const markStockChanged = async (
     RETURNING shop_id, substring(stream from 7) AS sku_id, last_sent_at`;
   for (const r of rows) {
     const key = streamActionKey(r.shop_id, stockStream(r.sku_id));
-    await scheduleAction(tx, { kind: 'webhook_stream', key, dueAt: nextStockSendAt(now, r.last_sent_at, windowMs) });
+    await scheduleAction(tx, {
+      kind: 'webhook_stream',
+      key,
+      dueAt: nextStockSendAt(now, r.last_sent_at, windowMs),
+    });
     fx.actions.push({ kind: 'webhook_stream', key });
-    fx.realtime.push({ room: rooms.shop(r.shop_id), event: EVENTS.stockChanged, payload: { skuId: r.sku_id } });
+    fx.realtime.push({
+      room: rooms.shop(r.shop_id),
+      event: EVENTS.stockChanged,
+      payload: { skuId: r.sku_id },
+    });
   }
 };

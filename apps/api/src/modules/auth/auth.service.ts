@@ -9,10 +9,21 @@ import { fail, ok, type Result } from '@ff/shared/result';
 import { type ApiEnv } from '../../config/env';
 import { CLOCK, DB, ENV } from '../../infra/tokens';
 import { type Principal } from '../../common/auth/principal';
-import { hashToken, looksLikeJwt, newRefreshToken, signAccessToken, verifyAccessToken } from './domain/tokens';
+import {
+  hashToken,
+  looksLikeJwt,
+  newRefreshToken,
+  signAccessToken,
+  verifyAccessToken,
+} from './domain/tokens';
 import * as repo from './repo/auth.repo';
 
-export type Session = { readonly accessToken: string; readonly refreshToken: string; readonly expiresIn: number; readonly principal: Principal };
+export type Session = {
+  readonly accessToken: string;
+  readonly refreshToken: string;
+  readonly expiresIn: number;
+  readonly principal: Principal;
+};
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -34,16 +45,22 @@ export class AuthService implements OnModuleInit {
     const subject = staff ?? shopUser;
     // Always run one argon2 verify so unknown users and wrong passwords take the same time.
     const valid = await argonVerify(subject?.passwordHash ?? this.dummyHash, password).catch(() => false);
-    if (subject === null || !valid || !subject.active) return fail('INVALID_CREDENTIALS', 'invalid email or password');
+    if (subject === null || !valid || !subject.active)
+      return fail('INVALID_CREDENTIALS', 'invalid email or password');
     return ok(await this.issue(staff !== null ? 'staff' : 'shop_user', subject.id, randomUUID()));
   }
 
   async refresh(token: string | undefined): Promise<Result<Session>> {
-    if (token === undefined || token.length < 20 || token.length > 200) return fail('TOKEN_INVALID', 'invalid refresh token');
+    if (token === undefined || token.length < 20 || token.length > 200)
+      return fail('TOKEN_INVALID', 'invalid refresh token');
     const now = this.clock.now();
     const row = await repo.findRefreshToken(this.db, hashToken(token));
     if (row === null) return fail('TOKEN_INVALID', 'invalid refresh token');
-    if (row.revokedAt !== null || row.usedAt !== null || !(await repo.consumeRefreshToken(this.db, row.id, now))) {
+    if (
+      row.revokedAt !== null ||
+      row.usedAt !== null ||
+      !(await repo.consumeRefreshToken(this.db, row.id, now))
+    ) {
       await repo.revokeFamily(this.db, row.familyId, now);
       return fail('TOKEN_REUSED', 'refresh token reuse detected; session revoked');
     }
@@ -71,7 +88,8 @@ export class AuthService implements OnModuleInit {
     if (apiKey !== null) return this.resolveApiKey(apiKey.prefix, apiKey.key);
     if (!looksLikeJwt(token)) return fail('TOKEN_INVALID', 'invalid token');
     const claims = verifyAccessToken(token, this.env.JWT_ACCESS_SECRET, this.clock.now());
-    if (claims === null || (await repo.isFamilyRevoked(this.db, claims.fam))) return fail('TOKEN_INVALID', 'invalid token');
+    if (claims === null || (await repo.isFamilyRevoked(this.db, claims.fam)))
+      return fail('TOKEN_INVALID', 'invalid token');
     if (claims.typ === 'staff') {
       const s = await repo.findStaffById(this.db, claims.sub);
       if (s === null || !s.active) return fail('TOKEN_INVALID', 'invalid token');
@@ -107,7 +125,12 @@ export class AuthService implements OnModuleInit {
       expiresAt: new Date(now.getTime() + this.env.JWT_REFRESH_TTL_SEC * 1000),
       now,
     });
-    const accessToken = signAccessToken({ sub: subjectId, typ, fam: familyId }, this.env.JWT_ACCESS_SECRET, this.env.JWT_ACCESS_TTL_SEC, now);
+    const accessToken = signAccessToken(
+      { sub: subjectId, typ, fam: familyId },
+      this.env.JWT_ACCESS_SECRET,
+      this.env.JWT_ACCESS_TTL_SEC,
+      now,
+    );
     const principal = await this.resolveBearer(`Bearer ${accessToken}`);
     if (!principal.ok) throw new Error('freshly issued token did not resolve');
     return { accessToken, refreshToken, expiresIn: this.env.JWT_ACCESS_TTL_SEC, principal: principal.value };

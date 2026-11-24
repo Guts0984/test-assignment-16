@@ -9,7 +9,9 @@ import { httpStatusFor, type ErrorCode, type FieldError } from '@ff/shared/error
 import { isErrorPayload } from './errors';
 
 const zodFields = (e: ZodError): FieldError[] =>
-  e.issues.slice(0, 50).map((i) => ({ path: i.path.join('.') || '(root)', code: i.code, message: i.message }));
+  e.issues
+    .slice(0, 50)
+    .map((i) => ({ path: i.path.join('.') || '(root)', code: i.code, message: i.message }));
 
 type Mapped = { code: ErrorCode; message: string; fields?: FieldError[]; details?: Record<string, unknown> };
 
@@ -34,11 +36,13 @@ const fromHttp = (e: HttpException): Mapped => {
 const fromParser = (e: unknown): Mapped | null => {
   const t = (e as { type?: unknown }).type;
   if (t === 'entity.too.large') return { code: 'PAYLOAD_TOO_LARGE', message: 'request body too large' };
-  if (t === 'entity.parse.failed') return { code: 'MALFORMED_JSON', message: 'request body is not valid JSON' };
+  if (t === 'entity.parse.failed')
+    return { code: 'MALFORMED_JSON', message: 'request body is not valid JSON' };
   if (t === 'encoding.unsupported' || t === 'charset.unsupported') {
     return { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'unsupported encoding' };
   }
-  if (t === 'request.aborted' || t === 'request.size.invalid') return { code: 'VALIDATION_FAILED', message: 'bad request body' };
+  if (t === 'request.aborted' || t === 'request.size.invalid')
+    return { code: 'VALIDATION_FAILED', message: 'bad request body' };
   return null;
 };
 
@@ -52,22 +56,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const req = ctx.getRequest<Request & { requestId?: string }>();
     const mapped = this.map(exception);
     if (mapped.code === 'UNEXPECTED') {
-      this.logger.error(`unexpected error on ${req.method} ${req.path}: ${exception instanceof Error ? exception.message : String(exception)}`);
+      this.logger.error(
+        `unexpected error on ${req.method} ${req.path}: ${exception instanceof Error ? exception.message : String(exception)}`,
+      );
     }
     if (res.headersSent) return;
-    res.status(httpStatusFor(mapped.code)).json({ error: { ...mapped, requestId: req.requestId ?? 'unknown' } });
+    res
+      .status(httpStatusFor(mapped.code))
+      .json({ error: { ...mapped, requestId: req.requestId ?? 'unknown' } });
   }
 
   private map(e: unknown): Mapped {
     if (e instanceof ZodValidationException) {
-      return { code: 'VALIDATION_FAILED', message: 'request validation failed', fields: zodFields(e.getZodError() as ZodError) };
+      return {
+        code: 'VALIDATION_FAILED',
+        message: 'request validation failed',
+        fields: zodFields(e.getZodError() as ZodError),
+      };
     }
     if (e instanceof HttpException) return fromHttp(e);
     const parser = fromParser(e);
     if (parser !== null) return parser;
     const pg = pgCode(e);
-    if (pg === SQLSTATE.uniqueViolation) return { code: 'CONFLICT', message: 'a record with these values already exists' };
-    if (pg === SQLSTATE.checkViolation) return { code: 'INSUFFICIENT_STOCK', message: 'the change would break a stock rule' };
+    if (pg === SQLSTATE.uniqueViolation)
+      return { code: 'CONFLICT', message: 'a record with these values already exists' };
+    if (pg === SQLSTATE.checkViolation)
+      return { code: 'INSUFFICIENT_STOCK', message: 'the change would break a stock rule' };
     if (pg === SQLSTATE.deadlock || pg === SQLSTATE.serialization) {
       return { code: 'CONFLICT', message: 'concurrent update, please retry' };
     }

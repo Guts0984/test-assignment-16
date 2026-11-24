@@ -1,6 +1,6 @@
 // Every pending background action is a row in Postgres (scheduled_actions). BullMQ only carries
 // copies of due rows; after a Redis loss the reconciler rebuilds them (plan.md A-28).
-import { type Prisma, type Db, type Tx } from '@ff/db/client';
+import { Prisma, type Db, type Tx } from '@ff/db/client';
 
 export const ACTION_KINDS = [
   'reserve_order',
@@ -14,6 +14,8 @@ export const ACTION_KINDS = [
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
+type JsonValue = Prisma.JsonValue;
+
 export type ActionRow = {
   readonly id: string;
   readonly kind: ActionKind;
@@ -22,7 +24,7 @@ export type ActionRow = {
   readonly status: 'pending' | 'running' | 'done' | 'dead';
   readonly attempts: number;
   readonly runCount: number;
-  readonly payload: Prisma.JsonValue;
+  readonly payload: JsonValue;
 };
 
 type RawRow = {
@@ -52,7 +54,12 @@ const toRow = (r: RawRow): ActionRow => ({
  */
 export const scheduleAction = async (
   tx: Tx | Db,
-  a: { readonly kind: ActionKind; readonly key: string; readonly dueAt: Date; readonly payload?: Prisma.InputJsonValue },
+  a: {
+    readonly kind: ActionKind;
+    readonly key: string;
+    readonly dueAt: Date;
+    readonly payload?: Prisma.InputJsonValue;
+  },
 ): Promise<void> => {
   await tx.$executeRaw`
     INSERT INTO scheduled_actions (kind, key, due_at, status, payload, attempts, updated_at)
@@ -68,10 +75,16 @@ export const scheduleAction = async (
 };
 
 /** Due pending rows, and running rows whose lease expired (their worker died). */
-export const dueActions = async (db: Db, now: Date, limit: number): Promise<readonly ActionRow[]> => {
+export const dueActions = async (
+  db: Db,
+  now: Date,
+  limit: number,
+  kinds?: readonly ActionKind[],
+): Promise<readonly ActionRow[]> => {
+  const kindFilter = kinds === undefined ? Prisma.empty : Prisma.sql`AND kind = ANY(${[...kinds]}::text[])`;
   const rows = await db.$queryRaw<RawRow[]>`
     SELECT id, kind, key, due_at, status, attempts, run_count, payload FROM scheduled_actions
-    WHERE (status = 'pending' AND due_at <= ${now}) OR (status = 'running' AND lease_until < ${now})
+    WHERE ((status = 'pending' AND due_at <= ${now}) OR (status = 'running' AND lease_until < ${now})) ${kindFilter}
     ORDER BY due_at LIMIT ${limit}`;
   return rows.map(toRow);
 };

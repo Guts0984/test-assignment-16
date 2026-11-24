@@ -21,7 +21,8 @@ export const signAccessToken = (
   secret: string,
   ttlSec: number,
   now: Date,
-): string => jwt.sign({ ...claims, iat: seconds(now), exp: seconds(now) + ttlSec }, secret, { algorithm: 'HS256' });
+): string =>
+  jwt.sign({ ...claims, iat: seconds(now), exp: seconds(now) + ttlSec }, secret, { algorithm: 'HS256' });
 
 /** Only HS256 with our secret; alg none, other algorithms, tampering, expiry and missing claims fail. */
 export const verifyAccessToken = (token: string, secret: string, now: Date): AccessClaims | null => {
@@ -36,4 +37,5 @@ export const verifyAccessToken = (token: string, secret: string, now: Date): Acc
 
 export const newRefreshToken = (): string => randomBytes(32).toString('base64url');
 export const hashToken = (t: string): string => createHash('sha256').update(t).digest('hex');
-export const looksLikeJwt = (t: string): boolean => /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/.test(t);
+export const looksLikeJwt = (t: string): boolean =>
+  /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/.test(t);

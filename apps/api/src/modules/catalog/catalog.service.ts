@@ -45,7 +45,11 @@ export class CatalogService {
     return s === null ? fail('NOT_FOUND', 'SKU not found') : ok(toSku(s));
   }
 
-  async update(shopId: string, id: string, patch: Partial<CreateSkuInput>): Promise<Result<ReturnType<typeof toSku>>> {
+  async update(
+    shopId: string,
+    id: string,
+    patch: Partial<CreateSkuInput>,
+  ): Promise<Result<ReturnType<typeof toSku>>> {
     if ((await this.db.sku.count({ where: { id, shopId } })) === 0) return fail('NOT_FOUND', 'SKU not found');
     await this.db.sku.updateMany({ where: { id, shopId }, data: patch });
     return this.get(shopId, id);
@@ -53,7 +57,10 @@ export class CatalogService {
 
   async page(shopId: string, q: { q?: string; limit: number; cursor?: string }) {
     const page = await shopSkuPage(this.db, shopId, q.q, q.limit, q.cursor);
-    const rows = await this.db.sku.findMany({ where: { id: { in: page.items.map((i) => i.id) } }, orderBy: { code: 'asc' } });
+    const rows = await this.db.sku.findMany({
+      where: { id: { in: page.items.map((i) => i.id) } },
+      orderBy: { code: 'asc' },
+    });
     return { items: rows.map(toSku), nextCursor: page.nextCursor };
   }
 }

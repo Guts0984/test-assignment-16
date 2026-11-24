@@ -2,7 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { hash as argonHash, argon2id } from 'argon2';
 import { type Db } from '@ff/db/client';
 import { pgCode, SQLSTATE } from '@ff/db/pg-errors';
-import { encryptSecret, generateApiKey, generateWebhookSecret, hashApiKey, parseApiKey } from '@ff/shared/crypto/secrets';
+import {
+  encryptSecret,
+  generateApiKey,
+  generateWebhookSecret,
+  hashApiKey,
+  parseApiKey,
+} from '@ff/shared/crypto/secrets';
 import { fail, ok, type Result } from '@ff/shared/result';
 import { type CreateShopInput } from '@ff/shared/schemas/setup';
 import { type ApiEnv } from '../../config/env';
@@ -48,29 +54,43 @@ export class AdminShopsService {
   }
 
   async createKey(shopId: string, label: string) {
-    if ((await this.db.shop.count({ where: { id: shopId } })) === 0) return fail('NOT_FOUND', 'shop not found');
+    if ((await this.db.shop.count({ where: { id: shopId } })) === 0)
+      return fail('NOT_FOUND', 'shop not found');
     const apiKey = generateApiKey();
     const row = await this.db.shopApiKey.create({ data: this.keyRow(shopId, apiKey, label) });
     return ok({ key: toApiKey(row), apiKey });
   }
 
   async listKeys(shopId: string) {
-    return { items: (await this.db.shopApiKey.findMany({ where: { shopId }, orderBy: { createdAt: 'asc' } })).map(toApiKey) };
+    return {
+      items: (await this.db.shopApiKey.findMany({ where: { shopId }, orderBy: { createdAt: 'asc' } })).map(
+        toApiKey,
+      ),
+    };
   }
 
   /** Revocation takes effect on the next request: keys are checked against the DB every time. */
   async revokeKey(shopId: string, keyId: string): Promise<Result<ReturnType<typeof toApiKey>>> {
-    const n = await this.db.shopApiKey.updateMany({ where: { id: keyId, shopId, revokedAt: null }, data: { revokedAt: this.clock.now() } });
+    const n = await this.db.shopApiKey.updateMany({
+      where: { id: keyId, shopId, revokedAt: null },
+      data: { revokedAt: this.clock.now() },
+    });
     const row = await this.db.shopApiKey.findFirst({ where: { id: keyId, shopId } });
     if (row === null) return fail('NOT_FOUND', 'API key not found');
     return n.count === 0 && row.revokedAt === null ? fail('CONFLICT', 'could not revoke') : ok(toApiKey(row));
   }
 
   async createUser(shopId: string, u: { email: string; name: string; password: string }) {
-    if ((await this.db.shop.count({ where: { id: shopId } })) === 0) return fail('NOT_FOUND', 'shop not found');
+    if ((await this.db.shop.count({ where: { id: shopId } })) === 0)
+      return fail('NOT_FOUND', 'shop not found');
     try {
       const row = await this.db.shopUser.create({
-        data: { shopId, email: u.email, name: u.name, passwordHash: await argonHash(u.password, { type: argon2id }) },
+        data: {
+          shopId,
+          email: u.email,
+          name: u.name,
+          passwordHash: await argonHash(u.password, { type: argon2id }),
+        },
       });
       return ok({ id: row.id, shopId: row.shopId, email: row.email, name: row.name });
     } catch (e) {

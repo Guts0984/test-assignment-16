@@ -32,7 +32,9 @@ export const flushEffects = async (d: EffectDeps, fx: Effects): Promise<void> =>
   await Promise.all(
     fx.actions.map(async (a) => {
       try {
-        const row = await d.db.scheduledAction.findUnique({ where: { kind_key: { kind: a.kind, key: a.key } } });
+        const row = await d.db.scheduledAction.findUnique({
+          where: { kind_key: { kind: a.kind, key: a.key } },
+        });
         if (row === null || row.status !== 'pending' || row.dueAt > now) return;
         await d.queues?.enqueue(a.kind, row.id, jobIdFor(row));
       } catch {

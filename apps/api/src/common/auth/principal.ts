@@ -11,12 +11,23 @@ export type StaffPrincipal = {
   readonly roles: readonly RoleAt[];
   readonly familyId: string;
 };
-export type ShopUserPrincipal = { readonly kind: 'shop_user'; readonly id: string; readonly shopId: string; readonly familyId: string };
-export type ApiKeyPrincipal = { readonly kind: 'api_key'; readonly id: string; readonly shopId: string; readonly prefix: string };
+export type ShopUserPrincipal = {
+  readonly kind: 'shop_user';
+  readonly id: string;
+  readonly shopId: string;
+  readonly familyId: string;
+};
+export type ApiKeyPrincipal = {
+  readonly kind: 'api_key';
+  readonly id: string;
+  readonly shopId: string;
+  readonly prefix: string;
+};
 export type Principal = StaffPrincipal | ShopUserPrincipal | ApiKeyPrincipal;
 export type PrincipalKind = Principal['kind'];
 
-export const isAdmin = (p: Principal): boolean => p.kind === 'staff' && p.roles.some((r) => r.role === 'admin');
+export const isAdmin = (p: Principal): boolean =>
+  p.kind === 'staff' && p.roles.some((r) => r.role === 'admin');
 
 export const shopIdOf = (p: Principal): string | null => (p.kind === 'staff' ? null : p.shopId);
 

@@ -16,22 +16,34 @@ type ShopPrincipal = ShopUserPrincipal | ApiKeyPrincipal;
 export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
 
-  @Post() @ShopAccess() @Created(SkuDto) @ApiProtectedErrors(409)
+  @Post()
+  @ShopAccess()
+  @Created(SkuDto)
+  @ApiProtectedErrors(409)
   async create(@CurrentPrincipal() p: ShopPrincipal, @Body() b: CreateSkuDto) {
     return unwrap(await this.catalog.create(p.shopId, b));
   }
 
-  @Get() @ShopAccess() @Ok(SkuPageDto) @ApiProtectedErrors()
+  @Get()
+  @ShopAccess()
+  @Ok(SkuPageDto)
+  @ApiProtectedErrors()
   list(@CurrentPrincipal() p: ShopPrincipal, @Query() q: SkuQueryDto) {
     return this.catalog.page(p.shopId, q);
   }
 
-  @Get(':id') @ShopAccess() @Ok(SkuDto) @ApiProtectedErrors(404)
+  @Get(':id')
+  @ShopAccess()
+  @Ok(SkuDto)
+  @ApiProtectedErrors(404)
   async get(@CurrentPrincipal() p: ShopPrincipal, @Param('id', UUID) id: string) {
     return unwrap(await this.catalog.get(p.shopId, id));
   }
 
-  @Patch(':id') @ShopAccess() @Ok(SkuDto) @ApiProtectedErrors(404)
+  @Patch(':id')
+  @ShopAccess()
+  @Ok(SkuDto)
+  @ApiProtectedErrors(404)
   async update(@CurrentPrincipal() p: ShopPrincipal, @Param('id', UUID) id: string, @Body() b: UpdateSkuDto) {
     return unwrap(await this.catalog.update(p.shopId, id, b));
   }

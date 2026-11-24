@@ -21,17 +21,27 @@ export const Public = () => SetMetadata(ACCESS_KEY, { public: true } satisfies A
 
 export const StaffAccess = (roles: readonly StaffRole[], warehouseParam?: string) =>
   applyDecorators(
-    SetMetadata(ACCESS_KEY, { principals: ['staff'], roles, ...(warehouseParam ? { warehouseParam } : {}) } satisfies AccessRule),
+    SetMetadata(ACCESS_KEY, {
+      principals: ['staff'],
+      roles,
+      ...(warehouseParam ? { warehouseParam } : {}),
+    } satisfies AccessRule),
     ApiBearerAuth(),
   );
 
 export const AdminOnly = () => StaffAccess(['admin']);
 
 export const ShopAccess = () =>
-  applyDecorators(SetMetadata(ACCESS_KEY, { principals: ['shop_user', 'api_key'] } satisfies AccessRule), ApiBearerAuth());
+  applyDecorators(
+    SetMetadata(ACCESS_KEY, { principals: ['shop_user', 'api_key'] } satisfies AccessRule),
+    ApiBearerAuth(),
+  );
 
 export const AnyPrincipal = () =>
-  applyDecorators(SetMetadata(ACCESS_KEY, { principals: ['staff', 'shop_user', 'api_key'] } satisfies AccessRule), ApiBearerAuth());
+  applyDecorators(
+    SetMetadata(ACCESS_KEY, { principals: ['staff', 'shop_user', 'api_key'] } satisfies AccessRule),
+    ApiBearerAuth(),
+  );
 
 export const RATE_LIMIT_KEY = 'ff:rate-limit';
 export type RateBucket = 'login' | 'scan';

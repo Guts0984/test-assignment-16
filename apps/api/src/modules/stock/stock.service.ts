@@ -7,7 +7,12 @@ import { CLOCK, DB } from '../../infra/tokens';
 const group = (rows: readonly StockRow[]) => {
   const bySku = new Map<string, { skuId: string; skuCode: string; skuName: string; warehouses: object[] }>();
   for (const r of rows) {
-    const e = bySku.get(r.skuId) ?? { skuId: r.skuId, skuCode: r.skuCode, skuName: r.skuName, warehouses: [] };
+    const e = bySku.get(r.skuId) ?? {
+      skuId: r.skuId,
+      skuCode: r.skuCode,
+      skuName: r.skuName,
+      warehouses: [],
+    };
     e.warehouses.push({
       warehouseId: r.warehouseId,
       warehouseCode: r.warehouseCode,
@@ -32,7 +37,12 @@ export class StockService {
   async shopStock(shopId: string, q: { q?: string; warehouseId?: string; limit: number; cursor?: string }) {
     const now = this.clock.now();
     const page = await shopSkuPage(this.db, shopId, q.q, q.limit, q.cursor);
-    const rows = await stockForSkus(this.db, page.items.map((i) => i.id), now.toISOString().slice(0, 10), q.warehouseId ?? null);
+    const rows = await stockForSkus(
+      this.db,
+      page.items.map((i) => i.id),
+      now.toISOString().slice(0, 10),
+      q.warehouseId ?? null,
+    );
     return { items: group(rows), nextCursor: page.nextCursor, asOf: now.toISOString() };
   }
 
@@ -40,7 +50,12 @@ export class StockService {
   async warehouseStock(warehouseId: string, sku: string) {
     const now = this.clock.now();
     const skus = await this.db.sku.findMany({ where: { OR: [{ barcode: sku }, { code: sku }] }, take: 50 });
-    const rows = await stockForSkus(this.db, skus.map((s) => s.id), now.toISOString().slice(0, 10), warehouseId);
+    const rows = await stockForSkus(
+      this.db,
+      skus.map((s) => s.id),
+      now.toISOString().slice(0, 10),
+      warehouseId,
+    );
     return { items: group(rows), nextCursor: null, asOf: now.toISOString() };
   }
 }
