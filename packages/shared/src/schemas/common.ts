@@ -10,19 +10,15 @@ const hasControlChars = (s: string): boolean =>
     return (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) || c === 0x7f;
   });
 
-/** Free text: NFC-normalised, trimmed, no control characters or null bytes, bounded length. */
+/** Free text: no control characters or null bytes, bounded length, then NFC-normalised and trimmed. */
 export const text = (max: number, min = 1) =>
   z
     .string()
-    .max(max * 4)
+    .min(min)
+    .max(max)
+    .refine((s) => !hasControlChars(s), { message: 'control characters are not allowed' })
     .transform((s) => s.normalize('NFC').trim())
-    .pipe(
-      z
-        .string()
-        .min(min)
-        .max(max)
-        .refine((s) => !hasControlChars(s), { message: 'control characters are not allowed' }),
-    );
+    .refine((s) => s.length >= min, { message: 'must not be blank' });
 
 export const idSchema = z.string().uuid();
 export const isoDateSchema = z

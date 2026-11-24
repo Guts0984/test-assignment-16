@@ -1,6 +1,6 @@
 # plan.md — Fulfillment warehouse for online shops
 
-Status: **Phase 0: waiting for review.** No code yet.
+Status: **Phase 1: building.** See the checklist in section 9.
 
 Sources of truth, highest first: `ASSIGNMENT.md` → this plan (after approval) → `CLAUDE.md` → `.claude/skills/adversarial-testing/SKILL.md` → defaults.
 
@@ -242,7 +242,7 @@ I found no direct conflict between ASSIGNMENT.md and CLAUDE.md. The items below 
 | ID | Gap / ambiguity | Decision |
 |---|---|---|
 | A-1 | Languages | **English everywhere**: code, comments, plan, docs, README, UI, seed data, error messages, commit messages, the shop stub page. Russian appears only in `ASSIGNMENT.md` (user instruction). `scripts/check-no-cyrillic.ts` runs in CI lint and fails on any Cyrillic character outside `ASSIGNMENT.md`. |
-| A-2 | Tooling defaults (assignment silent) | Node 22 LTS, pnpm 9 workspaces, TypeScript strict, ESLint flat config + typescript-eslint + `eslint-plugin-boundaries` (FSD), Prettier, docker compose v2. |
+| A-2 | Tooling defaults (assignment silent) | Node 22 LTS in images (Node 24 works locally), pnpm 12 workspaces (the installed version), dependency majors pinned to mature lines (TypeScript 5.9, ESLint 9, Vitest 3, Prisma 6, NestJS 11, zod 3.25, Next 15, BullMQ 5), TypeScript strict, ESLint flat config + typescript-eslint + `eslint-plugin-boundaries` (FSD), Prettier, docker compose v2. |
 | A-3 | OpenAPI from zod | `nestjs-zod` builds DTO classes from shared zod schemas. `scripts/openapi-export.ts` boots the app without listening and writes `apps/api/openapi.json`. **Orval** generates the TanStack Query client into `apps/web/src/shared/api/generated`. CI regenerates both and runs `git diff --exit-code`. |
 | A-4 | "Nearest to the address" | The order address carries optional `lat/lon`. Distance: haversine if present. Otherwise 0 when the address country matches the warehouse country, else 1. Final tie-break: warehouse id. Pure function in shared. |
 | A-5 | Partial reserve: on which warehouse? | When no warehouse covers everything, pick the one covering the **most units**, then nearest, then id. The order is then bound to that warehouse. Re-reserve only happens there. |
@@ -283,6 +283,9 @@ I found no direct conflict between ASSIGNMENT.md and CLAUDE.md. The items below 
 | A-40 | Input limits | Order: 1–500 lines, qty integer 1…100 000, duplicate SKU lines rejected (`DUPLICATE_LINE`), strings ≤ 500 chars, NFC-normalised. JSON depth ≤ 20, `__proto__`/`constructor` keys rejected. Unknown fields rejected (zod `.strict()`, which blocks mass assignment). Pagination: `limit` 1…200, cursor-based. |
 | A-41 | Error format | `{ error: { code: string, message: string, fields?: [{ path, code, message }], requestId } }`. One global exception filter maps zod, domain `Result` errors, Prisma known errors and everything else to it. Unknown errors → 500 with `code: "UNEXPECTED"` and no internals; a test asserts no endpoint ever reaches it with fuzzed input. |
 | A-42 | Distance between warehouses for transfers | Not modelled. A transfer leaves stock in `TRANSIT` until the destination receives it. |
+| A-43 | Host ports | Other local projects use 8080/5433/6380, so compose publishes nginx on 28080, postgres on 25432, redis on 26379 and the stub on 24000 (all in `.env`). Compose network 172.31.116.0/24 with nginx pinned at .10. |
+| A-44 | Test databases | Each package's integration tests use their own database (`fulfillment_<pkg>_test`) and Redis db index, dropped and migrated at start, so packages never interfere. |
+| A-45 | "On time" in the report | An order is on time when it was packed before the cutoff of its target ship day (the earliest day it could ship, from `received_at`), i.e. it left on its earliest possible ship day. |
 
 ---
 
@@ -567,12 +570,12 @@ Bugs found in commit 11 by the adversarial suite are fixed inside commit 11, so 
 
 ## 9. Progress checklist
 
-- [ ] Phase 0: plan approved
-- [ ] 1 scaffold + env + compose base + CI
-- [ ] 2 shared domain rules
-- [ ] 3 db schema, migrations, ledger, constraints
-- [ ] 4 seed
-- [ ] 5 redis infra, queues, rate limiter, socket adapter, clock
+- [x] Phase 0: plan approved
+- [x] 1 scaffold + env + compose base + CI
+- [x] 2 shared domain rules
+- [x] 3 db schema, migrations, ledger, constraints
+- [x] 4 seed
+- [x] 5 redis infra, queues, rate limiter, socket adapter, clock
 - [ ] 6 api core
 - [ ] 7 shop stub
 - [ ] 8 api inventory and floor flows

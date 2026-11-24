@@ -2,6 +2,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 
 export { Prisma, PrismaClient };
+export type { Location, Shop, ShopApiKey, Sku, Staff, StaffRoleAssignment, Warehouse } from '@prisma/client';
 export type Tx = Prisma.TransactionClient;
 export type Db = PrismaClient;
 

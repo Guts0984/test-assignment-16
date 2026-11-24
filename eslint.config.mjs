@@ -17,6 +17,9 @@ export const NEST_CLASS_FILES = [
   '**/*.processor.ts',
   '**/*.dto.ts',
   '**/*.provider.ts',
+  '**/*.middleware.ts',
+  '**/*.adapter.ts',
+  '**/*.decorator.ts',
 ];
 
 /** Files allowed to read process.env: env parsers, tool configs, test bootstrap, scripts. */
@@ -29,6 +32,7 @@ export const ENV_READER_FILES = [
   'e2e/**',
   'packages/db/src/seed/run-seed.ts',
   'packages/db/src/testing.ts',
+  'apps/api/src/openapi-export.ts',
 ];
 
 /** Files that must default-export (Next route files, tool configs). */
@@ -97,6 +101,7 @@ export default tseslint.config(
   },
   {
     files: ['scripts/**', 'e2e/**', '**/test/**'],
-    rules: { 'no-console': 'off' },
+    // Tests read untyped JSON bodies from a real server.
+    rules: { 'no-console': 'off', '@typescript-eslint/no-explicit-any': 'off' },
   },
 );
