@@ -46,3 +46,13 @@ export const verifyWebhook = (
     ? { ok: true, timestamp: ts }
     : { ok: false, reason: 'mismatch' };
 };
+
+/** What a shop receives. `version` grows per stream; a receiver drops anything not newer. */
+export type WebhookEnvelope = {
+  readonly eventId: string;
+  readonly type: 'order.status_changed' | 'stock.available_changed';
+  readonly stream: string;
+  readonly version: number;
+  readonly occurredAt: string;
+  readonly data: Readonly<Record<string, unknown>>;
+};

@@ -1,0 +1,20 @@
+{
+  "name": "@ff/shop-stub",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:int": "vitest run -c vitest.int.config.mts"
+  },
+  "dependencies": {
+    "@ff/shared": "workspace:*",
+    "fastify": "5.12.8",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7"
+  }
+}
