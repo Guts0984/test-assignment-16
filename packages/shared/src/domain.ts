@@ -48,7 +48,7 @@ export type MovementKind = (typeof MOVEMENT_KINDS)[number];
 export const CELL_BLOCK_REASONS = ['count', 'shortage'] as const;
 export type CellBlockReason = (typeof CELL_BLOCK_REASONS)[number];
 
-export const COUNT_STATUSES = ['open', 'submitted', 'pending_approval', 'closed'] as const;
+export const COUNT_STATUSES = ['open', 'pending_approval', 'closed'] as const;
 export type CountStatus = (typeof COUNT_STATUSES)[number];
 
 export const TASK_STATUSES = ['pending', 'assigned', 'done', 'cancelled'] as const;

@@ -1,0 +1,33 @@
+{
+  "name": "@ff/db",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./*": {
+      "source": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "typecheck": "prisma generate >/dev/null && tsc -p tsconfig.json --noEmit",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "test": "echo 'db: covered by integration tests'",
+    "test:int": "vitest run",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "node dist/seed/run-seed.js"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@ff/shared": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "prisma": "6.19.3"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7",
+    "zod": "3.25.76"
+  }
+}

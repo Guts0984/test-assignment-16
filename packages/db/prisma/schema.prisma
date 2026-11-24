@@ -1,0 +1,664 @@
+// Postgres is the source of truth. Constraints Prisma cannot express (CHECK, partial unique,
+// expression indexes, the ledger trigger) live in the SQL migrations next to this file.
+
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  received
+  awaiting_stock
+  reserved
+  in_wave
+  picking
+  picked
+  packed
+  shipped
+  cancelled
+
+  @@map("order_status")
+}
+
+enum DeliveryMethod {
+  standard
+  express
+
+  @@map("delivery_method")
+}
+
+enum StaffRole {
+  admin
+  shift_lead
+  storekeeper
+  picker
+  packer
+
+  @@map("staff_role")
+}
+
+enum LocationKind {
+  storage
+  receiving
+  packing
+  return
+  transit
+
+  @@map("location_kind")
+}
+
+enum MovementKind {
+  receipt
+  putaway
+  reserve
+  unreserve
+  pick
+  ship
+  move
+  transfer_out
+  transfer_in
+  return
+  adjustment
+
+  @@map("movement_kind")
+}
+
+model Warehouse {
+  id          String    @id @default(uuid()) @db.Uuid
+  code        String    @unique
+  name        String
+  country     String    @db.Char(2)
+  timeZone    String    @map("time_zone")
+  cutoffLocal String    @map("cutoff_local")
+  workingDays Int[]     @map("working_days")
+  holidays    String[]  @default([])
+  lat         Float?
+  lon         Float?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  zones       Zone[]
+  locations   Location[]
+
+  @@map("warehouses")
+}
+
+model Zone {
+  id          String     @id @default(uuid()) @db.Uuid
+  warehouseId String     @map("warehouse_id") @db.Uuid
+  code        String
+  name        String
+  warehouse   Warehouse  @relation(fields: [warehouseId], references: [id])
+  locations   Location[]
+
+  @@unique([warehouseId, code])
+  @@map("zones")
+}
+
+model Location {
+  id                String       @id @default(uuid()) @db.Uuid
+  warehouseId       String       @map("warehouse_id") @db.Uuid
+  zoneId            String?      @map("zone_id") @db.Uuid
+  kind              LocationKind
+  code              String
+  walkOrder         Int          @default(0) @map("walk_order")
+  capacityVolumeCm3 BigInt       @default(0) @map("capacity_volume_cm3")
+  capacityWeightG   BigInt       @default(0) @map("capacity_weight_g")
+  blockedReason     String?      @map("blocked_reason")
+  transferId        String?      @map("transfer_id") @db.Uuid
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  warehouse         Warehouse    @relation(fields: [warehouseId], references: [id])
+  zone              Zone?        @relation(fields: [zoneId], references: [id])
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId, kind, walkOrder])
+  @@map("locations")
+}
+
+model Shop {
+  id                String   @id @default(uuid()) @db.Uuid
+  code              String   @unique
+  name              String
+  webhookUrl        String   @map("webhook_url")
+  webhookSecretEnc  String   @map("webhook_secret_enc")
+  minShelfLifeDays  Int      @map("min_shelf_life_days")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("shops")
+}
+
+model ShopApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  shopId     String    @map("shop_id") @db.Uuid
+  prefix     String    @unique
+  hash       String
+  label      String    @default("")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(3)
+
+  @@index([shopId])
+  @@map("shop_api_keys")
+}
+
+model ShopUser {
+  id           String   @id @default(uuid()) @db.Uuid
+  shopId       String   @map("shop_id") @db.Uuid
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("shop_users")
+}
+
+model Staff {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
+  name         String
+  passwordHash String      @map("password_hash")
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  roles        StaffRoleAssignment[]
+
+  @@map("staff")
+}
+
+model StaffRoleAssignment {
+  id          String    @id @default(uuid()) @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  role        StaffRole
+  warehouseId String?   @map("warehouse_id") @db.Uuid
+  staff       Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@map("staff_roles")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  familyId    String    @map("family_id") @db.Uuid
+  subjectType String    @map("subject_type")
+  subjectId   String    @map("subject_id") @db.Uuid
+  tokenHash   String    @unique @map("token_hash")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt      DateTime? @map("used_at") @db.Timestamptz(3)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model Sku {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @map("shop_id") @db.Uuid
+  code        String
+  name        String
+  barcode     String
+  weightG     Int      @map("weight_g")
+  lengthMm    Int      @map("length_mm")
+  widthMm     Int      @map("width_mm")
+  heightMm    Int      @map("height_mm")
+  tracksExpiry Boolean @map("tracks_expiry")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([shopId, barcode])
+  @@unique([shopId, code])
+  @@index([barcode])
+  @@map("skus")
+}
+
+model Batch {
+  id         String    @id @default(uuid()) @db.Uuid
+  skuId      String    @map("sku_id") @db.Uuid
+  code       String
+  expiresOn  DateTime? @map("expires_on") @db.Date
+  receivedAt DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  @@unique([skuId, code])
+  @@map("batches")
+}
+
+model StockBalance {
+  locationId  String   @map("location_id") @db.Uuid
+  skuId       String   @map("sku_id") @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  onHand      Int      @map("on_hand")
+  reserved    Int
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@id([locationId, skuId, batchId])
+  @@index([skuId, warehouseId])
+  @@index([warehouseId, skuId])
+  @@map("stock_balances")
+}
+
+model StockMovement {
+  id             BigInt       @id @default(autoincrement())
+  groupId        String       @map("group_id") @db.Uuid
+  kind           MovementKind
+  warehouseId    String       @map("warehouse_id") @db.Uuid
+  locationId     String       @map("location_id") @db.Uuid
+  skuId          String       @map("sku_id") @db.Uuid
+  batchId        String       @map("batch_id") @db.Uuid
+  onHandDelta    Int          @map("on_hand_delta")
+  reservedDelta  Int          @map("reserved_delta")
+  qty            Int
+  fromLocationId String?      @map("from_location_id") @db.Uuid
+  toLocationId   String?      @map("to_location_id") @db.Uuid
+  docType        String       @map("doc_type")
+  docId          String       @map("doc_id")
+  actorType      String       @map("actor_type")
+  actorId        String?      @map("actor_id") @db.Uuid
+  reason         String?
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([locationId, skuId, batchId])
+  @@index([docType, docId])
+  @@index([warehouseId, kind, createdAt])
+  @@index([actorId, kind, createdAt])
+  @@map("stock_movements")
+}
+
+model InboundRequest {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @map("shop_id") @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  reference   String
+  status      String   @default("open")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  lines       InboundLine[]
+
+  @@unique([shopId, reference])
+  @@map("inbound_requests")
+}
+
+model InboundLine {
+  id          String         @id @default(uuid()) @db.Uuid
+  inboundId   String         @map("inbound_id") @db.Uuid
+  skuId       String         @map("sku_id") @db.Uuid
+  expectedQty Int            @map("expected_qty")
+  inbound     InboundRequest @relation(fields: [inboundId], references: [id], onDelete: Cascade)
+
+  @@unique([inboundId, skuId])
+  @@map("inbound_lines")
+}
+
+model Receipt {
+  id          String    @id @default(uuid()) @db.Uuid
+  warehouseId String    @map("warehouse_id") @db.Uuid
+  shopId      String    @map("shop_id") @db.Uuid
+  inboundId   String?   @map("inbound_id") @db.Uuid
+  status      String    @default("open")
+  createdBy   String    @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  closedAt    DateTime? @map("closed_at") @db.Timestamptz(3)
+
+  @@index([warehouseId, status])
+  @@map("receipts")
+}
+
+model ReceiptLine {
+  id             String   @id @default(uuid()) @db.Uuid
+  receiptId      String   @map("receipt_id") @db.Uuid
+  skuId          String   @map("sku_id") @db.Uuid
+  batchId        String   @map("batch_id") @db.Uuid
+  qty            Int
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([receiptId])
+  @@map("receipt_lines")
+}
+
+model ReceiptDiscrepancy {
+  id          String   @id @default(uuid()) @db.Uuid
+  receiptId   String   @map("receipt_id") @db.Uuid
+  skuId       String   @map("sku_id") @db.Uuid
+  expectedQty Int      @map("expected_qty")
+  receivedQty Int      @map("received_qty")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([receiptId, skuId])
+  @@map("receipt_discrepancies")
+}
+
+model Transfer {
+  id                String    @id @default(uuid()) @db.Uuid
+  fromWarehouseId   String    @map("from_warehouse_id") @db.Uuid
+  toWarehouseId     String    @map("to_warehouse_id") @db.Uuid
+  status            String    @default("in_transit")
+  transitLocationId String?   @map("transit_location_id") @db.Uuid
+  createdBy         String    @map("created_by") @db.Uuid
+  idempotencyKey    String    @unique @map("idempotency_key")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  receivedAt        DateTime? @map("received_at") @db.Timestamptz(3)
+
+  @@map("transfers")
+}
+
+model TransferLine {
+  id          String @id @default(uuid()) @db.Uuid
+  transferId  String @map("transfer_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+  batchId     String @map("batch_id") @db.Uuid
+  qty         Int
+  receivedQty Int?   @map("received_qty")
+
+  @@index([transferId])
+  @@map("transfer_lines")
+}
+
+model Order {
+  id                     String         @id @default(uuid()) @db.Uuid
+  shopId                 String         @map("shop_id") @db.Uuid
+  externalNumber         String         @map("external_number")
+  payloadHash            String         @map("payload_hash")
+  status                 OrderStatus    @default(received)
+  deliveryMethod         DeliveryMethod @map("delivery_method")
+  address                Json
+  customerName           String         @map("customer_name")
+  country                String         @db.Char(2)
+  lat                    Float?
+  lon                    Float?
+  warehouseId            String?        @map("warehouse_id") @db.Uuid
+  receivedAt             DateTime       @map("received_at") @db.Timestamptz(3)
+  targetCutoffAt         DateTime?      @map("target_cutoff_at") @db.Timestamptz(3)
+  shipDay                DateTime?      @map("ship_day") @db.Date
+  packedAt               DateTime?      @map("packed_at") @db.Timestamptz(3)
+  shippedAt              DateTime?      @map("shipped_at") @db.Timestamptz(3)
+  cancelledAt            DateTime?      @map("cancelled_at") @db.Timestamptz(3)
+  partialReserveExpiresAt DateTime?     @map("partial_reserve_expires_at") @db.Timestamptz(3)
+  allOrNothing           Boolean        @default(false) @map("all_or_nothing")
+  statusVersion          Int            @default(0) @map("status_version")
+  updatedAt              DateTime       @default(now()) @map("updated_at") @db.Timestamptz(3)
+  lines                  OrderLine[]
+
+  @@unique([shopId, externalNumber])
+  @@index([warehouseId, status])
+  @@index([status, receivedAt])
+  @@index([shopId, receivedAt])
+  @@index([warehouseId, shippedAt])
+  @@map("orders")
+}
+
+model OrderLine {
+  id          String @id @default(uuid()) @db.Uuid
+  orderId     String @map("order_id") @db.Uuid
+  lineNo      Int    @map("line_no")
+  skuId       String @map("sku_id") @db.Uuid
+  qty         Int
+  reservedQty Int    @default(0) @map("reserved_qty")
+  pickedQty   Int    @default(0) @map("picked_qty")
+  order       Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, lineNo])
+  @@unique([orderId, skuId])
+  @@index([skuId])
+  @@map("order_lines")
+}
+
+model OrderReservation {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  orderLineId String   @map("order_line_id") @db.Uuid
+  locationId  String   @map("location_id") @db.Uuid
+  skuId       String   @map("sku_id") @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  qty         Int
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([orderLineId, locationId, batchId])
+  @@index([orderId])
+  @@index([locationId, skuId, batchId])
+  @@map("order_reservations")
+}
+
+model OrderStatusHistory {
+  id         BigInt       @id @default(autoincrement())
+  orderId    String       @map("order_id") @db.Uuid
+  version    Int
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus  @map("to_status")
+  actorType  String       @map("actor_type")
+  actorId    String?      @map("actor_id") @db.Uuid
+  reason     String?
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([orderId, version])
+  @@map("order_status_history")
+}
+
+model Wave {
+  id          String   @id @default(uuid()) @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  trigger     String
+  createdBy   String?  @map("created_by") @db.Uuid
+  orderCount  Int      @map("order_count")
+  createdAt   DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@index([warehouseId, createdAt])
+  @@map("waves")
+}
+
+model WaveOrder {
+  id      String  @id @default(uuid()) @db.Uuid
+  waveId  String  @map("wave_id") @db.Uuid
+  orderId String  @map("order_id") @db.Uuid
+  active  Boolean @default(true)
+
+  @@index([waveId])
+  @@map("wave_orders")
+}
+
+model PickTask {
+  id           String    @id @default(uuid()) @db.Uuid
+  waveId       String    @map("wave_id") @db.Uuid
+  orderId      String    @map("order_id") @db.Uuid
+  warehouseId  String    @map("warehouse_id") @db.Uuid
+  status       String    @default("pending")
+  assigneeId   String?   @map("assignee_id") @db.Uuid
+  priorityRank Int       @map("priority_rank")
+  assignedAt   DateTime? @map("assigned_at") @db.Timestamptz(3)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(3)
+  createdAt    DateTime  @map("created_at") @db.Timestamptz(3)
+
+  @@index([warehouseId, status, priorityRank])
+  @@index([assigneeId, status])
+  @@map("pick_tasks")
+}
+
+model PickLine {
+  id          String @id @default(uuid()) @db.Uuid
+  taskId      String @map("task_id") @db.Uuid
+  orderLineId String @map("order_line_id") @db.Uuid
+  locationId  String @map("location_id") @db.Uuid
+  skuId       String @map("sku_id") @db.Uuid
+  batchId     String @map("batch_id") @db.Uuid
+  qty         Int
+  pickedQty   Int    @default(0) @map("picked_qty")
+  status      String @default("open")
+  walkOrder   Int    @map("walk_order")
+
+  @@index([taskId])
+  @@index([locationId, status])
+  @@map("pick_lines")
+}
+
+model PickScan {
+  id             String   @id @default(uuid()) @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key")
+  lineId         String   @map("line_id") @db.Uuid
+  pickerId       String   @map("picker_id") @db.Uuid
+  qty            Int
+  createdAt      DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@index([lineId])
+  @@map("pick_scans")
+}
+
+model Shortage {
+  id          String   @id @default(uuid()) @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  taskId      String   @map("task_id") @db.Uuid
+  lineId      String   @map("line_id") @db.Uuid
+  locationId  String   @map("location_id") @db.Uuid
+  skuId       String   @map("sku_id") @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  pickerId    String   @map("picker_id") @db.Uuid
+  expectedQty Int      @map("expected_qty")
+  foundQty    Int      @map("found_qty")
+  createdAt   DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@index([warehouseId, createdAt])
+  @@map("shortages")
+}
+
+model StockCount {
+  id            String    @id @default(uuid()) @db.Uuid
+  warehouseId   String    @map("warehouse_id") @db.Uuid
+  locationId    String    @map("location_id") @db.Uuid
+  status        String    @default("open")
+  origin        String
+  assigneeId    String?   @map("assignee_id") @db.Uuid
+  createdBy     String?   @map("created_by") @db.Uuid
+  needsApproval Boolean   @default(false) @map("needs_approval")
+  approvedBy    String?   @map("approved_by") @db.Uuid
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(3)
+  submittedAt   DateTime? @map("submitted_at") @db.Timestamptz(3)
+  closedAt      DateTime? @map("closed_at") @db.Timestamptz(3)
+
+  @@index([warehouseId, status])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  countId          String  @map("count_id") @db.Uuid
+  skuId            String  @map("sku_id") @db.Uuid
+  batchId          String  @map("batch_id") @db.Uuid
+  systemQty        Int     @map("system_qty")
+  countedQty       Int     @map("counted_qty")
+  delta            Int
+  requiresApproval Boolean @map("requires_approval")
+  reason           String?
+  countedBy        String  @map("counted_by") @db.Uuid
+
+  @@unique([countId, skuId, batchId])
+  @@map("stock_count_lines")
+}
+
+model Adjustment {
+  id          String   @id @default(uuid()) @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  countId     String   @map("count_id") @db.Uuid
+  locationId  String   @map("location_id") @db.Uuid
+  skuId       String   @map("sku_id") @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  delta       Int
+  reason      String
+  authorId    String   @map("author_id") @db.Uuid
+  approvedBy  String?  @map("approved_by") @db.Uuid
+  createdAt   DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@index([warehouseId, createdAt])
+  @@map("adjustments")
+}
+
+model IdempotencyRecord {
+  scope       String
+  key         String
+  requestHash String   @map("request_hash")
+  response    Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([scope, key])
+  @@index([createdAt])
+  @@map("idempotency_records")
+}
+
+model ScheduledAction {
+  id          String    @id @default(uuid()) @db.Uuid
+  kind        String
+  key         String
+  dueAt       DateTime  @map("due_at") @db.Timestamptz(3)
+  status      String    @default("pending")
+  attempts    Int       @default(0)
+  leaseUntil  DateTime? @map("lease_until") @db.Timestamptz(3)
+  lockedBy    String?   @map("locked_by")
+  lastError   String?   @map("last_error")
+  payload     Json      @default("{}")
+  runCount    Int       @default(0) @map("run_count")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  @@unique([kind, key])
+  @@index([status, dueAt])
+  @@map("scheduled_actions")
+}
+
+model WebhookStream {
+  shopId      String    @map("shop_id") @db.Uuid
+  stream      String
+  lastVersion Int       @default(0) @map("last_version")
+  lastSentAt  DateTime? @map("last_sent_at") @db.Timestamptz(3)
+  dirty       Boolean   @default(false)
+
+  @@id([shopId, stream])
+  @@map("webhook_streams")
+}
+
+model WebhookEvent {
+  id            String    @id @default(uuid()) @db.Uuid
+  shopId        String    @map("shop_id") @db.Uuid
+  stream        String
+  version       Int
+  type          String
+  payload       Json
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @map("next_attempt_at") @db.Timestamptz(3)
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @map("created_at") @db.Timestamptz(3)
+  deliveredAt   DateTime? @map("delivered_at") @db.Timestamptz(3)
+
+  @@unique([shopId, stream, version])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_events")
+}
+
+model ImportBatch {
+  id          String    @id @default(uuid()) @db.Uuid
+  shopId      String    @map("shop_id") @db.Uuid
+  status      String    @default("pending")
+  payload     Json
+  results     Json?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  @@index([shopId])
+  @@map("import_batches")
+}
+
+model TestClock {
+  id       Int    @id @default(1)
+  offsetMs BigInt @default(0) @map("offset_ms")
+
+  @@map("test_clock")
+}
+
+model SeedRun {
+  profile     String   @id
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(3)
+
+  @@map("seed_runs")
+}

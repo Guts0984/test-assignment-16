@@ -28,6 +28,7 @@ export const ENV_READER_FILES = [
   'scripts/**',
   'e2e/**',
   'packages/db/src/seed/run-seed.ts',
+  'packages/db/src/testing.ts',
 ];
 
 /** Files that must default-export (Next route files, tool configs). */
