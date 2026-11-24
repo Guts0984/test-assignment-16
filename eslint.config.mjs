@@ -3,6 +3,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
+import boundaries from 'eslint-plugin-boundaries';
 
 /** Files that hold NestJS constructs and may therefore declare classes. */
 export const NEST_CLASS_FILES = [
@@ -25,6 +26,7 @@ export const NEST_CLASS_FILES = [
 /** Files allowed to read process.env: env parsers, tool configs, test bootstrap, scripts. */
 export const ENV_READER_FILES = [
   '**/src/config/env.ts',
+  'apps/web/src/shared/config/env.ts',
   '**/*.config.{ts,mts,mjs,js,cjs}',
   '**/test/setup/**',
   '**/test/attacker/harness/**',
@@ -50,6 +52,56 @@ const restrictedSyntax = {
   defaultExport: [{ selector: 'ExportDefaultDeclaration', message: 'Use named exports.' }],
 };
 
+
+// Feature-Sliced Design for apps/web/src: a layer may import only from layers below it, never
+// sideways between slices of one layer, and a slice only through its index.ts (CLAUDE.md).
+const WEB = 'apps/web/src';
+const fsdElements = [
+  { type: 'app', pattern: `${WEB}/app`, mode: 'folder' },
+  { type: 'pages', pattern: `${WEB}/pages/*`, mode: 'folder', capture: ['slice'] },
+  { type: 'widgets', pattern: `${WEB}/widgets/*`, mode: 'folder', capture: ['slice'] },
+  { type: 'features', pattern: `${WEB}/features/*`, mode: 'folder', capture: ['slice'] },
+  { type: 'entities', pattern: `${WEB}/entities/*`, mode: 'folder', capture: ['slice'] },
+  { type: 'shared', pattern: `${WEB}/shared`, mode: 'folder' },
+];
+const own = (layer) => [layer, { slice: '${from.slice}' }];
+export const fsdConfig = {
+  files: [`${WEB}/**/*.{ts,tsx}`],
+  ignores: [`${WEB}/shared/api/generated/**`],
+  plugins: { boundaries },
+  settings: {
+    'boundaries/elements': fsdElements,
+    'boundaries/ignore': ['**/*.spec.{ts,tsx}'],
+    'import/resolver': { typescript: { project: 'apps/web/tsconfig.json' } },
+  },
+  rules: {
+    'boundaries/element-types': [
+      'error',
+      {
+        default: 'disallow',
+        rules: [
+          { from: 'app', allow: ['app', 'pages', 'widgets', 'features', 'entities', 'shared'] },
+          { from: 'pages', allow: [own('pages'), 'widgets', 'features', 'entities', 'shared'] },
+          { from: 'widgets', allow: [own('widgets'), 'features', 'entities', 'shared'] },
+          { from: 'features', allow: [own('features'), 'entities', 'shared'] },
+          { from: 'entities', allow: [own('entities'), 'shared'] },
+          { from: 'shared', allow: ['shared'] },
+        ],
+      },
+    ],
+    'boundaries/entry-point': [
+      'error',
+      {
+        default: 'disallow',
+        rules: [
+          { target: ['pages', 'widgets', 'features', 'entities'], allow: 'index.ts' },
+          { target: ['app', 'shared'], allow: '**' },
+        ],
+      },
+    ],
+  },
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -61,6 +113,7 @@ export default tseslint.config(
       '**/playwright-report/**',
       '**/test-results/**',
       'scripts/lint-fixtures/**',
+      '**/next-env.d.ts',
     ],
   },
   js.configs.recommended,
@@ -99,6 +152,7 @@ export default tseslint.config(
     files: ENV_READER_FILES,
     rules: { 'no-restricted-properties': 'off' },
   },
+  fsdConfig,
   {
     files: ['scripts/**', 'e2e/**', '**/test/**'],
     // Tests read untyped JSON bodies from a real server.

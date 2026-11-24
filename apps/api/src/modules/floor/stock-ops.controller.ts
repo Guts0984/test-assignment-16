@@ -34,6 +34,7 @@ import {
   ReceiptListDto,
   ReceiptSummaryDto,
   ReceiveTransferDto,
+  ShopBriefListDto,
   SuggestionsDto,
   TransferCreatedDto,
   TransferListDto,
@@ -46,6 +47,19 @@ import { STORE } from './roles';
 @Controller('warehouses/:warehouseId')
 export class StockOpsController {
   constructor(private readonly floor: FloorService) {}
+
+  /** Shops a storekeeper can receive for (id, code and name only; no webhook settings). */
+  @Get('shops')
+  @StaffAccess(STORE, 'warehouseId')
+  @Ok(ShopBriefListDto)
+  @ApiProtectedErrors()
+  async shops() {
+    const rows = await this.floor.db.shop.findMany({
+      orderBy: { code: 'asc' },
+      select: { id: true, code: true, name: true },
+    });
+    return { items: rows };
+  }
 
   @Post('receipts')
   @StaffAccess(STORE, 'warehouseId')

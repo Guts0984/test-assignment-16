@@ -1797,6 +1797,82 @@
         ]
       }
     },
+    "/api/warehouses/destinations": {
+      "get": {
+        "operationId": "WarehousesController_destinations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited (see Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error (shared format, no internals)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "warehouses"
+        ]
+      }
+    },
     "/api/warehouses/{warehouseId}/cells": {
       "get": {
         "operationId": "WarehousesController_cells",
@@ -3584,6 +3660,168 @@
         ]
       }
     },
+    "/api/shop/v1/warehouses": {
+      "get": {
+        "operationId": "ShopWarehousesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited (see Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error (shared format, no internals)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shop"
+        ]
+      }
+    },
+    "/api/warehouses/{warehouseId}/shops": {
+      "get": {
+        "operationId": "StockOpsController_shops",
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopBriefListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited (see Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error (shared format, no internals)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "storekeeper"
+        ]
+      }
+    },
     "/api/warehouses/{warehouseId}/receipts": {
       "post": {
         "operationId": "StockOpsController_createReceipt",
@@ -5344,6 +5582,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "warehouseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "requestBody": {
@@ -6704,6 +6951,109 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CountDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited (see Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error (shared format, no internals)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "counts"
+        ]
+      }
+    },
+    "/api/warehouses/{warehouseId}/counts/{id}/contents": {
+      "get": {
+        "operationId": "CountsController_contents",
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountContentsDto"
                 }
               }
             }
@@ -9838,6 +10188,37 @@
           "asOf"
         ]
       },
+      "ShopBriefListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "code",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "CreateReceiptDto": {
         "type": "object",
         "properties": {
@@ -11137,6 +11518,59 @@
           "needsApproval",
           "approvedBy",
           "lines"
+        ]
+      },
+      "CountContentsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "skuId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "skuCode": {
+                  "type": "string"
+                },
+                "skuName": {
+                  "type": "string"
+                },
+                "barcode": {
+                  "type": "string"
+                },
+                "batchId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "batchCode": {
+                  "type": "string"
+                },
+                "expiresOn": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "systemQty": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "skuId",
+                "skuCode",
+                "skuName",
+                "barcode",
+                "batchId",
+                "batchCode",
+                "expiresOn",
+                "systemQty"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "SubmitCountDto": {

@@ -25,6 +25,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: cp .env.example .env
       - run: pnpm build
+      - name: OpenAPI document and generated web client match the code
+        run: |
+          pnpm --filter @ff/api openapi:export
+          pnpm --filter @ff/web api:generate
+          git diff --exit-code -- apps/api/openapi.json apps/web/src/shared/api/generated
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test

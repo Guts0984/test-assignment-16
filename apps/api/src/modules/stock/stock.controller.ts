@@ -6,6 +6,8 @@ import { type ApiKeyPrincipal, type ShopUserPrincipal } from '../../common/auth/
 import { ApiProtectedErrors, Ok } from '../../common/openapi.decorator';
 import { UUID } from '../../common/uuid.pipe';
 import { StaffStockQueryDto, StockPageDto, StockQueryDto } from './dto/stock.dto';
+import { AdminWarehousesService } from '../admin/admin-warehouses.service';
+import { WarehouseListDto } from '../admin/dto/admin.dto';
 import { StockService } from './stock.service';
 
 @ApiTags('shop')
@@ -33,5 +35,20 @@ export class WarehouseStockController {
   @ApiProtectedErrors()
   get(@Param('warehouseId', UUID) warehouseId: string, @Query() q: StaffStockQueryDto) {
     return this.stock.warehouseStock(warehouseId, q.sku);
+  }
+}
+
+/** Warehouses a shop can deliver to (announce inbound requests). */
+@ApiTags('shop')
+@Controller('shop/v1/warehouses')
+export class ShopWarehousesController {
+  constructor(private readonly warehouses: AdminWarehousesService) {}
+
+  @Get()
+  @ShopAccess()
+  @Ok(WarehouseListDto)
+  @ApiProtectedErrors()
+  list() {
+    return this.warehouses.list('all');
   }
 }

@@ -17,20 +17,48 @@ import { LIMITER, REDIS, TRUSTED_PROXIES } from './infra/tokens';
 import { RedisIoAdapter } from './modules/realtime/redis-io.adapter';
 import { type Redis } from 'ioredis';
 
+type Operation = { parameters?: { name: string; in: string }[] };
+
+/** Every `{param}` in a path must be a declared path parameter (some are only read by guards). */
+export const withPathParams = (doc: OpenAPIObject): OpenAPIObject => {
+  for (const [path, item] of Object.entries(doc.paths)) {
+    const names = [...path.matchAll(/\{(\w+)\}/g)].map((m) => m[1] ?? '');
+    for (const op of Object.values(item as Record<string, Operation>)) {
+      if (typeof op !== 'object' || op === null) continue;
+      const have = new Set((op.parameters ?? []).filter((p) => p.in === 'path').map((p) => p.name));
+      const missing = names.filter((n) => !have.has(n));
+      if (missing.length > 0) {
+        op.parameters = [
+          ...(op.parameters ?? []),
+          ...missing.map((name) => ({
+            name,
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          })),
+        ] as never;
+      }
+    }
+  }
+  return doc;
+};
+
 export const buildOpenApi = (app: INestApplication): OpenAPIObject =>
-  cleanupOpenApiDoc(
-    SwaggerModule.createDocument(
-      app,
-      new DocumentBuilder()
-        .setTitle('Fulfillment API')
-        .setDescription('Warehouse fulfillment for online shops. Every error uses the shared error body.')
-        .setVersion('1.0.0')
-        .addBearerAuth({
-          type: 'http',
-          scheme: 'bearer',
-          description: 'Staff/shop JWT or shop API key (fk_...)',
-        })
-        .build(),
+  withPathParams(
+    cleanupOpenApiDoc(
+      SwaggerModule.createDocument(
+        app,
+        new DocumentBuilder()
+          .setTitle('Fulfillment API')
+          .setDescription('Warehouse fulfillment for online shops. Every error uses the shared error body.')
+          .setVersion('1.0.0')
+          .addBearerAuth({
+            type: 'http',
+            scheme: 'bearer',
+            description: 'Staff/shop JWT or shop API key (fk_...)',
+          })
+          .build(),
+      ),
     ),
   );
 

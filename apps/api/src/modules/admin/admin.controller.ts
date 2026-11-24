@@ -181,6 +181,15 @@ export class WarehousesController {
     return this.warehouses.list(warehousesOf(p));
   }
 
+  /** Every warehouse (id, code, name...), so a storekeeper can pick a transfer destination. */
+  @Get('destinations')
+  @StaffAccess(['storekeeper', 'shift_lead'])
+  @Ok(WarehouseListDto)
+  @ApiProtectedErrors()
+  destinations() {
+    return this.warehouses.list('all');
+  }
+
   @Get(':warehouseId/cells')
   @StaffAccess(['shift_lead', 'storekeeper', 'picker', 'packer'], 'warehouseId')
   @Ok(CellListDto)

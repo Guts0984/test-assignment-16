@@ -301,3 +301,24 @@ export class ReportDto extends createZodDto(
     adjustments: z.array(person),
   }),
 ) {}
+
+export class ShopBriefListDto extends createZodDto(
+  z.object({ items: z.array(z.object({ id: z.string().uuid(), code: z.string(), name: z.string() })) }),
+) {}
+
+export class CountContentsDto extends createZodDto(
+  z.object({
+    items: z.array(
+      z.object({
+        skuId: z.string().uuid(),
+        skuCode: z.string(),
+        skuName: z.string(),
+        barcode: z.string(),
+        batchId: z.string().uuid(),
+        batchCode: z.string(),
+        expiresOn: z.string().nullable(),
+        systemQty: z.number().int(),
+      }),
+    ),
+  }),
+) {}
