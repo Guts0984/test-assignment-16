@@ -20,12 +20,21 @@ const fakeApi = (copy: string): Promise<{ server: Server; url: string }> =>
       req.on('end', () => {
         hits.push({ copy, method: req.method ?? '', url: req.url ?? '', body, at: Date.now() });
         res.setHeader('content-type', 'application/json');
-        if (req.url?.startsWith('/api/shop/v1/skus')) return res.end(JSON.stringify({ items: [{ code: 'SKU-A' }, { code: 'SKU-B' }] }));
+        if (req.url?.startsWith('/api/shop/v1/skus'))
+          return res.end(JSON.stringify({ items: [{ code: 'SKU-A' }, { code: 'SKU-B' }] }));
         res.statusCode = copy === 'a' ? 201 : 200;
-        res.end(JSON.stringify({ orderId: '11111111-1111-4111-8111-111111111111', created: copy === 'a', status: 'received' }));
+        res.end(
+          JSON.stringify({
+            orderId: '11111111-1111-4111-8111-111111111111',
+            created: copy === 'a',
+            status: 'received',
+          }),
+        );
       });
     });
-    server.listen(0, '127.0.0.1', () => resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api` }));
+    server.listen(0, '127.0.0.1', () =>
+      resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api` }),
+    );
   });
 
 const TOKEN = 'control-token-0123456789';
@@ -39,9 +48,27 @@ let close: () => Promise<void>;
 beforeAll(async () => {
   a = await fakeApi('a');
   b = await fakeApi('b');
-  store.registerShop({ code: 'S1', apiKey: 'fk_00000000_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', webhookSecret: 'webhook-secret-0123456789' });
-  const sender = createSender({ fetch, apiUrl: a.url, apiAUrl: a.url, apiBUrl: b.url, chaos: () => chaos, seed: 1 });
-  const app = buildStub({ store, sender, chaos, now: () => new Date(), maxSkewSec: 300, controlToken: TOKEN });
+  store.registerShop({
+    code: 'S1',
+    apiKey: 'fk_00000000_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    webhookSecret: 'webhook-secret-0123456789',
+  });
+  const sender = createSender({
+    fetch,
+    apiUrl: a.url,
+    apiAUrl: a.url,
+    apiBUrl: b.url,
+    chaos: () => chaos,
+    seed: 1,
+  });
+  const app = buildStub({
+    store,
+    sender,
+    chaos,
+    now: () => new Date(),
+    maxSkewSec: 300,
+    controlToken: TOKEN,
+  });
   await app.listen({ port: 0, host: '127.0.0.1' });
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
   close = async () => {
@@ -54,7 +81,11 @@ afterAll(async () => close());
 
 describe('shop stub', () => {
   it('chaos: one order goes to both api copies at the same moment, same body', async () => {
-    const r = await fetch(`${base}/api/send`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ shop: 'S1' }) });
+    const r = await fetch(`${base}/api/send`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ shop: 'S1' }),
+    });
     expect(r.status).toBe(200);
     const orders = hits.filter((h) => h.url === '/api/shop/v1/orders');
     expect(orders.map((h) => h.copy).sort()).toEqual(['a', 'b']);
@@ -63,10 +94,22 @@ describe('shop stub', () => {
   });
 
   it('controls are 404 without the right token', async () => {
-    const no = await fetch(`${base}/control/chaos`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"enabled":false}' });
-    const wrong = await fetch(`${base}/control/chaos`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-token': 'nope' }, body: '{"enabled":false}' });
+    const no = await fetch(`${base}/control/chaos`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"enabled":false}',
+    });
+    const wrong = await fetch(`${base}/control/chaos`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-token': 'nope' },
+      body: '{"enabled":false}',
+    });
     expect([no.status, wrong.status]).toEqual([404, 404]);
-    const ok = await fetch(`${base}/control/chaos`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-token': TOKEN }, body: '{"failEvery":5}' });
+    const ok = await fetch(`${base}/control/chaos`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-token': TOKEN },
+      body: '{"failEvery":5}',
+    });
     expect(ok.status).toBe(200);
   });
 
@@ -80,7 +123,11 @@ describe('shop stub', () => {
       data: { note: '<script>alert(1)</script>' },
     });
     const sig = signWebhook('webhook-secret-0123456789', body, Math.floor(Date.now() / 1000));
-    const r = await fetch(`${base}/webhooks/S1`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-fulfillment-signature': sig }, body });
+    const r = await fetch(`${base}/webhooks/S1`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-fulfillment-signature': sig },
+      body,
+    });
     expect(r.status).toBe(200);
     const html = await (await fetch(`${base}/`)).text();
     expect(html).not.toContain('<script>alert(1)</script>');
@@ -88,10 +135,23 @@ describe('shop stub', () => {
   });
 
   it('a bad signature is rejected and listed as rejected', async () => {
-    const body = JSON.stringify({ eventId: randomUUID(), type: 'order.status_changed', stream: `order:${randomUUID()}`, version: 1, occurredAt: new Date().toISOString(), data: {} });
-    const r = await fetch(`${base}/webhooks/S1`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-fulfillment-signature': 't=1,v1=' + '0'.repeat(64) }, body });
+    const body = JSON.stringify({
+      eventId: randomUUID(),
+      type: 'order.status_changed',
+      stream: `order:${randomUUID()}`,
+      version: 1,
+      occurredAt: new Date().toISOString(),
+      data: {},
+    });
+    const r = await fetch(`${base}/webhooks/S1`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-fulfillment-signature': 't=1,v1=' + '0'.repeat(64) },
+      body,
+    });
     expect(r.status).toBe(401);
-    const list = (await (await fetch(`${base}/api/webhooks?shop=S1`)).json()) as { items: { outcome: string; signature: string }[] };
+    const list = (await (await fetch(`${base}/api/webhooks?shop=S1`)).json()) as {
+      items: { outcome: string; signature: string }[];
+    };
     expect(list.items.some((i) => i.outcome === 'rejected' && i.signature !== 'valid')).toBe(true);
   });
 });

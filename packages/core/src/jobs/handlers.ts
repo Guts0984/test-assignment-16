@@ -5,7 +5,9 @@ import { processImportBatch } from '../orders/import-batch';
 import { expirePartialReserve, rereserve, reserveOrder } from '../floor/reserve';
 import { formWave, waveCheck } from '../floor/waves';
 import { nextWaveDueAt } from '@ff/shared/rules/wave';
+import { nightly } from './maintenance';
 import { type Handler, type JobDeps } from './run-action';
+import { handleWebhookStream, type WebhookDeps } from './webhooks';
 
 /** Unexpected domain failures are retried and eventually surface as dead jobs for the admin. */
 const must = <T>(r: Result<T>): T => {
@@ -13,6 +15,8 @@ const must = <T>(r: Result<T>): T => {
   const e: DomainError = r.error;
   throw new Error(`${e.code}: ${e.message}`);
 };
+
+export type AllHandlerDeps = Omit<JobDeps, 'handlers'> & WebhookDeps & { readonly nightlyLocalTime: string };
 
 export const floorHandlers = (d: Omit<JobDeps, 'handlers'>): Partial<Record<string, Handler>> => ({
   reserve_order: async (row, fx) => {
@@ -40,4 +44,11 @@ export const floorHandlers = (d: Omit<JobDeps, 'handlers'>): Partial<Record<stri
     await processImportBatch(d, fx, row.key);
     return { next: null };
   },
+});
+
+/** Every handler of the worker: floor use-cases, webhook delivery, nightly maintenance. */
+export const allHandlers = (d: AllHandlerDeps): Partial<Record<string, Handler>> => ({
+  ...floorHandlers(d),
+  webhook_stream: (row, fx) => handleWebhookStream(d, row, fx),
+  nightly: async (row, fx) => nightly(d, fx, row.key),
 });

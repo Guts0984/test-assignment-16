@@ -3,9 +3,13 @@ import { type ShopCreds, type Store } from './store';
 
 /** Every interpolated value goes through this: the page shows untrusted webhook data. */
 export const escapeHtml = (v: unknown): string =>
-  String(v ?? '').replace(/[&<>"'`]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' })[c] ?? c);
+  String(v ?? '').replace(
+    /[&<>"'`]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' })[c] ?? c,
+  );
 
-const row = (cells: readonly unknown[]): string => `<tr>${cells.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`;
+const row = (cells: readonly unknown[]): string =>
+  `<tr>${cells.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`;
 
 export const renderPage = (store: Store, chaos: boolean, flash: string | null): string => {
   const shops = store.shops();

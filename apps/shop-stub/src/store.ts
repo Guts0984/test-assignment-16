@@ -31,7 +31,13 @@ export const createStore = () => {
     shops: () => [...shops.values()],
     nextDelivery: () => (counters.deliveries += 1),
     /** Applies the receiver rule: accept only versions newer than the last seen for the stream. */
-    accept: (shopCode: string, eventId: string, stream: string, version: number, data: unknown): ReceivedWebhook['outcome'] => {
+    accept: (
+      shopCode: string,
+      eventId: string,
+      stream: string,
+      version: number,
+      data: unknown,
+    ): ReceivedWebhook['outcome'] => {
       if (seenEvents.has(eventId)) return 'duplicate';
       seenEvents.add(eventId);
       const key = `${shopCode}|${stream}`;
@@ -46,9 +52,19 @@ export const createStore = () => {
       if (received.length > MAX_KEPT) received.splice(0, received.length - MAX_KEPT);
     },
     received: (filter: { shopCode?: string; stream?: string } = {}) =>
-      received.filter((r) => (filter.shopCode === undefined || r.shopCode === filter.shopCode) && (filter.stream === undefined || r.stream === filter.stream)),
+      received.filter(
+        (r) =>
+          (filter.shopCode === undefined || r.shopCode === filter.shopCode) &&
+          (filter.stream === undefined || r.stream === filter.stream),
+      ),
     latest: (shopCode: string) =>
-      [...latest.entries()].filter(([k]) => k.startsWith(`${shopCode}|`)).map(([k, data]) => ({ stream: k.slice(shopCode.length + 1), version: lastVersion.get(k) ?? 0, data })),
+      [...latest.entries()]
+        .filter(([k]) => k.startsWith(`${shopCode}|`))
+        .map(([k, data]) => ({
+          stream: k.slice(shopCode.length + 1),
+          version: lastVersion.get(k) ?? 0,
+          data,
+        })),
     reset: () => {
       received.length = 0;
       lastVersion.clear();

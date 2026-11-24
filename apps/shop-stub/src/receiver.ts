@@ -18,13 +18,27 @@ export const receiveWebhook = (
 ): ReceiveResult => {
   const at = now.toISOString();
   const shop = store.shop(shopCode);
-  const base = { shopCode, eventId: null, type: null, stream: null, version: null, data: null, receivedAt: at };
+  const base = {
+    shopCode,
+    eventId: null,
+    type: null,
+    stream: null,
+    version: null,
+    data: null,
+    receivedAt: at,
+  };
   if (shop === undefined) {
     store.record({ ...base, signature: 'unknown_shop', outcome: 'rejected' });
     return { status: 404, holdMs: 0 };
   }
   const sigHeader = headers[SIGNATURE_HEADER];
-  const sig = verifyWebhook(shop.webhookSecret, rawBody, typeof sigHeader === 'string' ? sigHeader : undefined, Math.floor(now.getTime() / 1000), maxSkewSec);
+  const sig = verifyWebhook(
+    shop.webhookSecret,
+    rawBody,
+    typeof sigHeader === 'string' ? sigHeader : undefined,
+    Math.floor(now.getTime() / 1000),
+    maxSkewSec,
+  );
   if (!sig.ok) {
     store.record({ ...base, signature: sig.reason, outcome: 'rejected' });
     return { status: 401, holdMs: 0 };
@@ -42,7 +56,15 @@ export const receiveWebhook = (
   }
   const e = parsed.data;
   const idHeader = headers[EVENT_ID_HEADER];
-  const meta = { ...base, eventId: e.eventId, type: e.type, stream: e.stream, version: e.version, data: e.data, signature: 'valid' as const };
+  const meta = {
+    ...base,
+    eventId: e.eventId,
+    type: e.type,
+    stream: e.stream,
+    version: e.version,
+    data: e.data,
+    signature: 'valid' as const,
+  };
   if (typeof idHeader === 'string' && idHeader !== e.eventId) {
     store.record({ ...meta, outcome: 'rejected' });
     return { status: 400, holdMs: 0 };

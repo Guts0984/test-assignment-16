@@ -578,7 +578,7 @@ Bugs found in commit 11 by the adversarial suite are fixed inside commit 11, so 
 - [x] 5 redis infra, queues, rate limiter, socket adapter, clock
 - [x] 6 api core
 - [x] 7 shop stub
-- [ ] 8 api inventory and floor flows
+- [x] 8 api inventory and floor flows
 - [ ] 9 worker
 - [ ] 10 web
 - [ ] 11 nginx + full compose + adversarial + e2e + perf

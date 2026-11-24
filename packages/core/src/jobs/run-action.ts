@@ -15,11 +15,15 @@ import {
   type ActionRow,
 } from '../scheduled-actions';
 
-export type JobSettings = {
-  readonly leaseMs: number;
+export type RetryPolicy = {
   readonly maxAttempts: number;
   readonly backoffBaseMs: number;
   readonly backoffMaxMs: number;
+};
+export type JobSettings = RetryPolicy & {
+  readonly leaseMs: number;
+  /** Per-kind overrides (webhooks retry longer than internal jobs). */
+  readonly byKind?: Partial<Record<ActionKind, RetryPolicy>>;
 };
 
 export type Handler = (row: ActionRow, fx: Effects) => Promise<{ readonly next: Date | null }>;
@@ -48,14 +52,22 @@ export const processAction = async (d: JobDeps, actionId: string, workerId: stri
     return finished ? 'done' : 'skipped';
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return failClaim(
+    const policy = d.jobs.byKind?.[claim.row.kind] ?? d.jobs;
+    const outcome = await failClaim(
       d.db,
       claim,
       message,
       d.clock.now(),
-      d.jobs.maxAttempts,
-      backoffMs(claim.row.attempts + 1, d.jobs.backoffBaseMs, d.jobs.backoffMaxMs),
+      policy.maxAttempts,
+      backoffMs(claim.row.attempts + 1, policy.backoffBaseMs, policy.backoffMaxMs),
     );
+    // A stream that ran out of attempts keeps its undelivered events marked dead until an admin reruns it.
+    if (outcome === 'dead' && claim.row.kind === 'webhook_stream') {
+      const [shopId = '', ...rest] = claim.row.key.split('|');
+      await d.db
+        .$executeRaw`UPDATE webhook_events SET status = 'dead' WHERE shop_id = ${shopId}::uuid AND stream = ${rest.join('|')} AND status IN ('pending', 'delivering')`;
+    }
+    return outcome;
   }
 };
 

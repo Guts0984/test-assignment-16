@@ -5,7 +5,11 @@ import { type ShopCreds } from './store';
 
 export type SendResult = {
   readonly externalNumber: string;
-  readonly responses: readonly { readonly target: string; readonly status: number; readonly orderId: string | null }[];
+  readonly responses: readonly {
+    readonly target: string;
+    readonly status: number;
+    readonly orderId: string | null;
+  }[];
   readonly cancelled: boolean;
 };
 
@@ -20,7 +24,14 @@ export type SenderDeps = {
 
 type Line = { sku: string; qty: number };
 
-const NAMES = ['Olena Kovalenko', 'Jan Nowak', 'Iryna Melnyk', 'Piotr Wojcik', 'Anna Boyko', 'Ewa Zielinska'] as const;
+const NAMES = [
+  'Olena Kovalenko',
+  'Jan Nowak',
+  'Iryna Melnyk',
+  'Piotr Wojcik',
+  'Anna Boyko',
+  'Ewa Zielinska',
+] as const;
 
 export const createSender = (d: SenderDeps) => {
   const rnd = seededRandom(d.seed);
@@ -30,7 +41,10 @@ export const createSender = (d: SenderDeps) => {
   const call = async (base: string, shop: ShopCreds, method: string, path: string, body?: unknown) => {
     const res = await d.fetch(`${base}${path}`, {
       method,
-      headers: { authorization: `Bearer ${shop.apiKey}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: {
+        authorization: `Bearer ${shop.apiKey}`,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
@@ -48,28 +62,50 @@ export const createSender = (d: SenderDeps) => {
 
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)] as T;
 
-  const buildOrder = async (shop: ShopCreds, o: { lines?: readonly Line[]; express?: boolean; externalNumber?: string }) => {
+  const buildOrder = async (
+    shop: ShopCreds,
+    o: { lines?: readonly Line[]; express?: boolean; externalNumber?: string },
+  ) => {
     counter.n += 1;
     const skus = o.lines === undefined ? await skusOf(shop) : [];
     const lines =
       o.lines ??
-      [...new Set(Array.from({ length: 1 + Math.floor(rnd() * 2) }, () => pick(skus)))].map((sku) => ({ sku, qty: 1 + Math.floor(rnd() * 2) }));
+      [...new Set(Array.from({ length: 1 + Math.floor(rnd() * 2) }, () => pick(skus)))].map((sku) => ({
+        sku,
+        qty: 1 + Math.floor(rnd() * 2),
+      }));
     return {
       externalNumber: o.externalNumber ?? `STUB-${shop.code}-${Date.now().toString(36)}-${counter.n}`,
       deliveryMethod: (o.express ?? rnd() < 0.2) ? 'express' : 'standard',
-      address: { name: pick(NAMES), line1: `${1 + Math.floor(rnd() * 200)} Main St`, city: 'Lviv', postalCode: '79000', country: 'UA' },
+      address: {
+        name: pick(NAMES),
+        line1: `${1 + Math.floor(rnd() * 200)} Main St`,
+        city: 'Lviv',
+        postalCode: '79000',
+        country: 'UA',
+      },
       lines,
     };
   };
 
-  const sendOne = async (shop: ShopCreds, o: { lines?: readonly Line[]; express?: boolean; externalNumber?: string }): Promise<SendResult> => {
+  const sendOne = async (
+    shop: ShopCreds,
+    o: { lines?: readonly Line[]; express?: boolean; externalNumber?: string },
+  ): Promise<SendResult> => {
     const chaos = d.chaos();
     const body = await buildOrder(shop, o);
     const targets = chaos.enabled ? [d.apiAUrl, d.apiBUrl] : [d.apiUrl];
     const responses = await Promise.all(
       targets.map(async (t) => {
-        const r = await call(t, shop, 'POST', '/shop/v1/orders', body).catch(() => ({ status: 0, json: null }));
-        return { target: t, status: r.status, orderId: typeof r.json?.orderId === 'string' ? r.json.orderId : null };
+        const r = await call(t, shop, 'POST', '/shop/v1/orders', body).catch(() => ({
+          status: 0,
+          json: null,
+        }));
+        return {
+          target: t,
+          status: r.status,
+          orderId: typeof r.json?.orderId === 'string' ? r.json.orderId : null,
+        };
       }),
     );
     const orderId = responses.find((r) => r.orderId !== null)?.orderId ?? null;
@@ -79,12 +115,18 @@ export const createSender = (d: SenderDeps) => {
   };
 
   return {
-    send: async (shop: ShopCreds, count: number, o: { lines?: readonly Line[]; express?: boolean; externalNumber?: string } = {}) => {
+    send: async (
+      shop: ShopCreds,
+      count: number,
+      o: { lines?: readonly Line[]; express?: boolean; externalNumber?: string } = {},
+    ) => {
       const results: SendResult[] = [];
-      for (let i = 0; i < count; i += 1) results.push(await sendOne(shop, count === 1 ? o : { ...o, externalNumber: undefined }));
+      for (let i = 0; i < count; i += 1)
+        results.push(await sendOne(shop, count === 1 ? o : { ...o, externalNumber: undefined }));
       return results;
     },
-    cancel: (shop: ShopCreds, orderId: string) => call(d.apiUrl, shop, 'POST', `/shop/v1/orders/${orderId}/cancel`),
+    cancel: (shop: ShopCreds, orderId: string) =>
+      call(d.apiUrl, shop, 'POST', `/shop/v1/orders/${orderId}/cancel`),
     forgetSkus: (code: string) => void skuCache.delete(code),
   };
 };

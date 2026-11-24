@@ -10,7 +10,9 @@ describe('webhook faults', () => {
     expect(pattern.slice(0, 4).every((p) => p === 'none')).toBe(true);
   });
   it('never fails when chaos is off', () => {
-    expect(Array.from({ length: 50 }, (_, i) => webhookFault(i + 1, false)).every((p) => p === 'none')).toBe(true);
+    expect(Array.from({ length: 50 }, (_, i) => webhookFault(i + 1, false)).every((p) => p === 'none')).toBe(
+      true,
+    );
   });
 });
 

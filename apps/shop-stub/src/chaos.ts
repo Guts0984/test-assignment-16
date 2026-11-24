@@ -20,4 +20,9 @@ export const seededRandom = (seed: number): (() => number) => {
   };
 };
 
-export type ChaosSettings = { enabled: boolean; cancelRate: number; failEvery: number; timeoutHoldMs: number };
+export type ChaosSettings = {
+  enabled: boolean;
+  cancelRate: number;
+  failEvery: number;
+  timeoutHoldMs: number;
+};

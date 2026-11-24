@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { FloorModule } from './modules/floor/floor.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { JobsAdminModule } from './modules/jobs-admin/jobs-admin.module';
 import { InboundModule } from './modules/inbound/inbound.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { StockModule } from './modules/stock/stock.module';
@@ -28,6 +29,7 @@ export class AppModule {
         StockModule,
         FloorModule,
         RealtimeModule,
+        JobsAdminModule,
         SystemModule.register(env.TEST_CLOCK_ENABLED),
       ],
       providers: [{ provide: APP_PIPE, useClass: ZodValidationPipe }],

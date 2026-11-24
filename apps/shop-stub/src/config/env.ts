@@ -29,7 +29,9 @@ export type StubEnv = z.infer<typeof schema>;
 export const parseStubEnv = (source: NodeJS.ProcessEnv): StubEnv => {
   const r = schema.safeParse(source);
   if (!r.success) {
-    throw new Error(`Invalid shop-stub configuration:\n${r.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n')}`);
+    throw new Error(
+      `Invalid shop-stub configuration:\n${r.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n')}`,
+    );
   }
   return Object.freeze(r.data);
 };
