@@ -597,6 +597,7 @@ model ScheduledAction {
   lastError   String?   @map("last_error")
   payload     Json      @default("{}")
   runCount    Int       @default(0) @map("run_count")
+  rearmed     Boolean   @default(false)
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
