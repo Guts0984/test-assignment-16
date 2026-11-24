@@ -1,0 +1,26 @@
+{
+  "name": "@ff/shared",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./*": {
+      "source": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:int": "echo 'shared: no integration tests (pure package)'"
+  },
+  "dependencies": {
+    "luxon": "3.7.2",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/luxon": "3.7.6",
+    "vitest": "3.2.7"
+  }
+}
