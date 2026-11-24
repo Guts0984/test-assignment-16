@@ -26,19 +26,29 @@ export const isPrivateAddress = (ip: string): boolean => {
   return l === '::1' || l === '::' || l.startsWith('fe80') || l.startsWith('fc') || l.startsWith('fd');
 };
 
+/**
+ * DNS lookup that refuses private answers. Node may ask for one address or for all of them
+ * (autoSelectFamily), so both callback shapes are supported. A name that resolves to any private
+ * address is refused as a whole: a rebinding answer cannot sneak one in.
+ */
 const guardedLookup =
   (allowPrivate: boolean): LookupFunction =>
   (hostname, options, cb) => {
-    dns.lookup(hostname, { ...options, all: false }, (err, address, family) => {
+    dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
       if (err) return cb(err, '', 4);
-      const addr = Array.isArray(address) ? address[0] : address;
-      if (typeof addr !== 'string') return cb(new Error('no address'), '', 4);
-      if (!allowPrivate && isPrivateAddress(addr)) return cb(new Error('blocked address'), '', 4);
-      return cb(null, addr, typeof family === 'number' ? family : isIP(addr));
+      const list = Array.isArray(addresses) ? addresses : [];
+      if (list.length === 0) return cb(new Error('no address'), '', 4);
+      if (!allowPrivate && list.some((a) => isPrivateAddress(a.address)))
+        return cb(new Error('blocked address'), '', 4);
+      if (options.all === true)
+        return (cb as unknown as (e: null, a: dns.LookupAddress[]) => void)(null, list);
+      const first = list[0];
+      return cb(null, first?.address ?? '', first?.family ?? 4);
     });
   };
 
-const safeHeader = (v: string): string => [...v].filter((c) => !['\r', '\n', String.fromCharCode(0)].includes(c)).join('');
+const safeHeader = (v: string): string =>
+  [...v].filter((c) => !['\r', '\n', String.fromCharCode(0)].includes(c)).join('');
 
 export const postWebhook = (
   url: string,

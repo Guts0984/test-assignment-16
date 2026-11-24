@@ -17,10 +17,13 @@ export const onTokenChange = (l: Listener): (() => void) => {
   return () => listeners.delete(l);
 };
 
-/** One refresh at a time, shared by every request that hit a 401. */
-export const refreshAccessToken = (refresh: () => Promise<string | null>): Promise<string | null> => {
-  state.refreshing ??= refresh().finally(() => {
+/** One refresh at a time, shared by every caller that needs it right now. */
+export const refreshOnce = <T>(refresh: () => Promise<T | null>): Promise<T | null> => {
+  const inflight = state.refreshing as Promise<T | null> | null;
+  if (inflight !== null) return inflight;
+  const p = refresh().finally(() => {
     state.refreshing = null;
   });
-  return state.refreshing;
+  state.refreshing = p as Promise<string | null>;
+  return p;
 };

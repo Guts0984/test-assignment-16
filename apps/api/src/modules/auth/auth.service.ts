@@ -1,7 +1,7 @@
 // Authentication: login, refresh rotation with reuse detection, logout, bearer resolution.
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
-import { hash as argonHash, argon2id, verify as argonVerify } from 'argon2';
+import { hashPassword, verifyPassword } from '@ff/db/password';
 import { type Db } from '@ff/db/client';
 import { type Clock } from '@ff/core/clock';
 import { apiKeyMatches, parseApiKey } from '@ff/shared/crypto/secrets';
@@ -36,7 +36,7 @@ export class AuthService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    this.dummyHash = await argonHash(randomUUID(), { type: argon2id });
+    this.dummyHash = await hashPassword(randomUUID());
   }
 
   async login(email: string, password: string): Promise<Result<Session>> {
@@ -44,7 +44,7 @@ export class AuthService implements OnModuleInit {
     const shopUser = staff === null ? await repo.findShopUserByEmail(this.db, email) : null;
     const subject = staff ?? shopUser;
     // Always run one argon2 verify so unknown users and wrong passwords take the same time.
-    const valid = await argonVerify(subject?.passwordHash ?? this.dummyHash, password).catch(() => false);
+    const valid = await verifyPassword(subject?.passwordHash ?? this.dummyHash, password);
     if (subject === null || !valid || !subject.active)
       return fail('INVALID_CREDENTIALS', 'invalid email or password');
     return ok(await this.issue(staff !== null ? 'staff' : 'shop_user', subject.id, randomUUID()));
@@ -90,8 +90,13 @@ export class AuthService implements OnModuleInit {
     const claims = verifyAccessToken(token, this.env.JWT_ACCESS_SECRET, this.clock.now());
     if (claims === null || (await repo.isFamilyRevoked(this.db, claims.fam)))
       return fail('TOKEN_INVALID', 'invalid token');
-    if (claims.typ === 'staff') {
-      const s = await repo.findStaffById(this.db, claims.sub);
+    return this.principalFor(claims.typ, claims.sub, claims.fam);
+  }
+
+  /** The principal for a staff member or shop user, from the database (roles are never cached in tokens). */
+  private async principalFor(typ: 'staff' | 'shop_user', id: string, familyId: string): Promise<Result<Principal>> {
+    if (typ === 'staff') {
+      const s = await repo.findStaffById(this.db, id);
       if (s === null || !s.active) return fail('TOKEN_INVALID', 'invalid token');
       return ok({
         kind: 'staff',
@@ -99,12 +104,12 @@ export class AuthService implements OnModuleInit {
         email: s.email,
         name: s.name,
         roles: s.roles.map((r) => ({ role: r.role, warehouseId: r.warehouseId })),
-        familyId: claims.fam,
+        familyId,
       });
     }
-    const u = await repo.findShopUserById(this.db, claims.sub);
+    const u = await repo.findShopUserById(this.db, id);
     if (u === null || !u.active) return fail('TOKEN_INVALID', 'invalid token');
-    return ok({ kind: 'shop_user', id: u.id, shopId: u.shopId, familyId: claims.fam });
+    return ok({ kind: 'shop_user', id: u.id, shopId: u.shopId, familyId });
   }
 
   private async resolveApiKey(prefix: string, key: string): Promise<Result<Principal>> {
@@ -131,8 +136,8 @@ export class AuthService implements OnModuleInit {
       this.env.JWT_ACCESS_TTL_SEC,
       now,
     );
-    const principal = await this.resolveBearer(`Bearer ${accessToken}`);
-    if (!principal.ok) throw new Error('freshly issued token did not resolve');
+    const principal = await this.principalFor(typ, subjectId, familyId);
+    if (!principal.ok) throw new Error('account disappeared while issuing a session');
     return { accessToken, refreshToken, expiresIn: this.env.JWT_ACCESS_TTL_SEC, principal: principal.value };
   }
 }

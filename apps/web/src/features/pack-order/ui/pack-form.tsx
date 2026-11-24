@@ -5,7 +5,9 @@ import { useOutboundControllerPack } from '@/shared/api/generated/packing/packin
 import { codeOf, messageOf } from '@/shared/lib/form-errors';
 import { newIdempotencyKey, normalizeScan } from '@/shared/lib/scan';
 import { playBeep } from '@/shared/lib/sound';
-import { Banner, Card, Field, LinkButton, TextInput } from '@/shared/ui';
+import { getAccessToken } from '@/shared/api/token-store';
+import { publicEnv } from '@/shared/config/env';
+import { Banner, Button, Card, Field, TextInput } from '@/shared/ui';
 
 const MESSAGES: Record<string, string> = {
   ORDER_CANCELLED: 'This order was cancelled. Take the goods to the return cell.',
@@ -14,6 +16,17 @@ const MESSAGES: Record<string, string> = {
 };
 
 /** Packer: scan the order, the system packs it and prints the label (PDF). Keyboard only. */
+/** The label needs the bearer token, which a plain link cannot send: fetch it and open it as a blob. */
+const openLabel = async (url: string): Promise<void> => {
+  const token = getAccessToken();
+  const res = await fetch(`${publicEnv.NEXT_PUBLIC_API_BASE_URL}${url.replace(/^\/api/, '')}`, {
+    headers: token === null ? {} : { authorization: `Bearer ${token}` },
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('label not available');
+  window.open(URL.createObjectURL(await res.blob()), '_blank');
+};
+
 export const PackForm = ({ warehouseId }: { warehouseId: string }) => {
   const pack = useOutboundControllerPack();
   const input = useRef<HTMLInputElement>(null);
@@ -69,9 +82,13 @@ export const PackForm = ({ warehouseId }: { warehouseId: string }) => {
       {result !== null && (
         <Card title={`Packed ${result.orderNumber}`}>
           <p className="mb-3 text-sm">Ships on {result.shipDay}.</p>
-          <LinkButton href={`/api${result.labelUrl.replace(/^\/api/, '')}`} variant="primary">
+          <Button
+            onClick={() =>
+              void openLabel(result.labelUrl).catch(() => setError('Could not open the label. Try again.'))
+            }
+          >
             Open the label (PDF)
-          </LinkButton>
+          </Button>
         </Card>
       )}
     </div>

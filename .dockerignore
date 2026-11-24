@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.next
+.git
+.env
+.env.*
+!.env.example
+e2e/test-results
+**/coverage
+docs
+*.md
+!README.md

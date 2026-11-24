@@ -1,7 +1,7 @@
 // The HTTP layer under the generated client: base URL, bearer token, one refresh-and-retry on 401,
 // JSON in/out, and the shared error body surfaced as ApiError.
 import { publicEnv } from '../config/env';
-import { getAccessToken, refreshAccessToken, setAccessToken } from './token-store';
+import { getAccessToken, refreshOnce, setAccessToken } from './token-store';
 
 export type ApiErrorBody = {
   readonly code: string;
@@ -33,25 +33,32 @@ const send = async (url: string, init: RequestInit, token: string | null): Promi
   });
 };
 
-const refresh = async (): Promise<string | null> => {
+type RefreshedSession = { readonly accessToken: string; readonly me: unknown };
+
+const requestRefresh = async (): Promise<RefreshedSession | null> => {
   const r = await fetch(`${publicEnv.NEXT_PUBLIC_API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{}',
     credentials: 'include',
   });
-  if (!r.ok) return null;
-  const j = (await r.json()) as { accessToken: string };
-  return j.accessToken;
+  return r.ok ? ((await r.json()) as RefreshedSession) : null;
 };
+
+/**
+ * Restores a session from the refresh cookie. The session restore and every request that hit a 401
+ * share ONE in-flight call: a rotating refresh token can be used once, and a second parallel use
+ * would look like token theft and end the session.
+ */
+export const refreshSession = (): Promise<RefreshedSession | null> => refreshOnce(requestRefresh);
 
 /** Called by every generated operation; resolves with the parsed body, rejects with ApiError. */
 export const apiFetch = async <T>(url: string, init: RequestInit = {}): Promise<T> => {
   let res = await send(url, init, getAccessToken());
   if (res.status === 401 && !url.startsWith('/api/auth/')) {
-    const fresh = await refreshAccessToken(refresh);
-    setAccessToken(fresh);
-    if (fresh !== null) res = await send(url, init, fresh);
+    const fresh = await refreshSession();
+    setAccessToken(fresh?.accessToken ?? null);
+    if (fresh !== null) res = await send(url, init, fresh.accessToken);
   }
   const text = await res.text();
   const parsed: unknown =

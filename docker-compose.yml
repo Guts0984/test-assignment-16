@@ -1,10 +1,71 @@
 name: fulfillment
 
+# Everything starts with: cp .env.example .env && docker compose up --build
+# Migrations and the seed run by themselves in the one-shot "migrate" service.
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  REDIS_URL: redis://redis:6379/0
+  WEBHOOK_SECRET_ENC_KEY: ${WEBHOOK_SECRET_ENC_KEY}
+  WEBHOOK_ALLOW_PRIVATE_HOSTS: ${WEBHOOK_ALLOW_PRIVATE_HOSTS}
+  WEBHOOK_COALESCE_MS: ${WEBHOOK_COALESCE_MS}
+  WEBHOOK_TIMEOUT_MS: ${WEBHOOK_TIMEOUT_MS}
+  WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS}
+  WEBHOOK_BACKOFF_BASE_MS: ${WEBHOOK_BACKOFF_BASE_MS}
+  WEBHOOK_BACKOFF_MAX_MS: ${WEBHOOK_BACKOFF_MAX_MS}
+  WAVE_INTERVAL_MIN: ${WAVE_INTERVAL_MIN}
+  WAVE_READY_THRESHOLD: ${WAVE_READY_THRESHOLD}
+  WAVE_MAX_ORDERS: ${WAVE_MAX_ORDERS}
+  PARTIAL_RESERVE_TTL_MIN: ${PARTIAL_RESERVE_TTL_MIN}
+  AT_RISK_THRESHOLD_MIN: ${AT_RISK_THRESHOLD_MIN}
+  TEST_CLOCK_ENABLED: ${TEST_CLOCK_ENABLED}
+  TEST_CONTROL_TOKEN: ${TEST_CONTROL_TOKEN}
+
+x-api-env: &api-env
+  <<: *app-env
+  API_PORT: 3000
+  DB_POOL_SIZE: ${DB_POOL_SIZE}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+  JWT_ACCESS_TTL_SEC: ${JWT_ACCESS_TTL_SEC}
+  JWT_REFRESH_TTL_SEC: ${JWT_REFRESH_TTL_SEC}
+  COOKIE_SECURE: ${COOKIE_SECURE}
+  API_KEY_PEPPER: ${API_KEY_PEPPER}
+  CORS_ORIGINS: ${CORS_ORIGINS}
+  TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS}
+  BODY_LIMIT_BYTES: ${BODY_LIMIT_BYTES}
+  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED}
+  RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS}
+  RATE_LIMIT_LOGIN_PER_IP: ${RATE_LIMIT_LOGIN_PER_IP}
+  RATE_LIMIT_LOGIN_PER_ACCOUNT: ${RATE_LIMIT_LOGIN_PER_ACCOUNT}
+  RATE_LIMIT_GENERAL_PER_IP: ${RATE_LIMIT_GENERAL_PER_IP}
+  RATE_LIMIT_SHOP_API_PER_KEY: ${RATE_LIMIT_SHOP_API_PER_KEY}
+  RATE_LIMIT_SHOP_API_PER_IP: ${RATE_LIMIT_SHOP_API_PER_IP}
+  RATE_LIMIT_SCAN_PER_STAFF: ${RATE_LIMIT_SCAN_PER_STAFF}
+  RATE_LIMIT_SOCKET_MSG_PER_SEC: ${RATE_LIMIT_SOCKET_MSG_PER_SEC}
+  SOCKET_PRESENCE_TTL_SEC: ${SOCKET_PRESENCE_TTL_SEC}
+
+x-api: &api
+  build: { context: ., target: api }
+  restart: unless-stopped
+  depends_on:
+    migrate: { condition: service_completed_successfully }
+    redis: { condition: service_healthy }
+
+  healthcheck:
+    test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    interval: 3s
+    timeout: 3s
+    retries: 40
+
 networks:
   default:
     ipam:
       config:
         - subnet: 172.31.116.0/24
+          ip_range: 172.31.116.128/25
 
 volumes:
   pgdata: {}
@@ -40,3 +101,95 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  migrate:
+    build: { context: ., target: migrate }
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SEED_PROFILE: ${SEED_PROFILE}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD}
+      SEED_API_KEY_SALT: ${SEED_API_KEY_SALT}
+      SEED_WEBHOOK_SECRET_SALT: ${SEED_WEBHOOK_SECRET_SALT}
+      SEED_WEBHOOK_BASE_URL: ${SEED_WEBHOOK_BASE_URL}
+      API_KEY_PEPPER: ${API_KEY_PEPPER}
+      WEBHOOK_SECRET_ENC_KEY: ${WEBHOOK_SECRET_ENC_KEY}
+    restart: 'no'
+
+  api-a:
+    <<: *api
+    environment:
+      <<: *api-env
+      API_INSTANCE_ID: a
+
+  api-b:
+    <<: *api
+    environment:
+      <<: *api-env
+      API_INSTANCE_ID: b
+
+  worker:
+    build: { context: ., target: worker }
+    restart: unless-stopped
+    deploy:
+      replicas: ${WORKER_REPLICAS}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      DB_POOL_SIZE: ${DB_POOL_SIZE}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY}
+      RECONCILE_INTERVAL_MS: ${RECONCILE_INTERVAL_MS}
+      JOB_LEASE_MS: ${JOB_LEASE_MS}
+      JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS}
+      JOB_BACKOFF_MS: ${JOB_BACKOFF_MS}
+      NIGHTLY_LOCAL_TIME: ${NIGHTLY_LOCAL_TIME}
+
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    depends_on:
+      api-a: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      NEXT_PUBLIC_SOCKET_PATH: ${NEXT_PUBLIC_SOCKET_PATH}
+      API_INTERNAL_URL: ${API_INTERNAL_URL}
+
+  shop-stub:
+    build: { context: ., target: shop-stub }
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      NODE_ENV: production
+      SHOP_STUB_PORT: 4000
+      SHOP_STUB_API_URL: ${SHOP_STUB_API_URL}
+      SHOP_STUB_API_A_URL: ${SHOP_STUB_API_A_URL}
+      SHOP_STUB_API_B_URL: ${SHOP_STUB_API_B_URL}
+      SHOP_STUB_CHAOS: ${SHOP_STUB_CHAOS}
+      SHOP_STUB_CHAOS_CANCEL_RATE: ${SHOP_STUB_CHAOS_CANCEL_RATE}
+      SHOP_STUB_CHAOS_SEED: ${SHOP_STUB_CHAOS_SEED}
+      SHOP_STUB_CONTROL_ENABLED: ${SHOP_STUB_CONTROL_ENABLED}
+      SHOP_STUB_WEBHOOK_MAX_SKEW_SEC: ${SHOP_STUB_WEBHOOK_MAX_SKEW_SEC}
+      SEED_API_KEY_SALT: ${SEED_API_KEY_SALT}
+      SEED_WEBHOOK_SECRET_SALT: ${SEED_WEBHOOK_SECRET_SALT}
+      TEST_CONTROL_TOKEN: ${TEST_CONTROL_TOKEN}
+    ports:
+      - '127.0.0.1:${SHOP_STUB_HOST_PORT}:4000'
+
+  nginx:
+    image: nginx:1.27
+    depends_on:
+      api-a: { condition: service_healthy }
+      api-b: { condition: service_healthy }
+      web: { condition: service_started }
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      default:
+        ipv4_address: 172.31.116.10
+    ports:
+      - '${NGINX_HOST_PORT}:80'

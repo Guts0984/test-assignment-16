@@ -8,7 +8,8 @@
     "start": "node dist/main.js",
     "test": "vitest run --passWithNoTests",
     "test:int": "vitest run -c vitest.int.config.mts",
-    "openapi:export": "node dist/openapi-export.js"
+    "openapi:export": "node dist/openapi-export.js",
+    "test:adversarial": "vitest run -c vitest.adv.config.mts"
   },
   "dependencies": {
     "@ff/core": "workspace:*",

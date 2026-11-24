@@ -92,6 +92,8 @@ describe('refresh tokens', () => {
       Array.from({ length: 5 }, () => api.post('/api/auth/refresh', { refreshToken: r })),
     );
     expect(res.filter((x) => x.status === 200).length).toBeLessThanOrEqual(1);
+    // a lost race is a clean 401, never an unexpected error
+    expect(res.every((x) => x.status === 200 || x.status === 401)).toBe(true);
   });
 
   it('logout revokes refresh and access tokens (no replay after logout)', async () => {

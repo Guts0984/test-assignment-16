@@ -1,5 +1,5 @@
 // Idempotent seed: runs once per database (seed_runs marker), all in one transaction.
-import { hash as argon2Hash, argon2id } from 'argon2';
+import { hashPassword } from '../password';
 import { encryptSecret, hashApiKey, parseApiKey } from '@ff/shared/crypto/secrets';
 import { type Db } from '../client';
 import { PROFILES, type SeedProfile } from './profiles';
@@ -37,7 +37,7 @@ export const runSeed = async (db: Db, cfg: SeedConfig): Promise<SeedOutcome> => 
   }
   const profile = PROFILES[cfg.profile];
   const now = cfg.now ?? new Date();
-  const passwordHash = await argon2Hash(cfg.demoPassword, { type: argon2id });
+  const passwordHash = await hashPassword(cfg.demoPassword);
 
   await db.$transaction(
     async (tx) => {

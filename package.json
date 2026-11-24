@@ -11,7 +11,11 @@
     "format": "prettier --write .",
     "test": "vitest run && pnpm -r --workspace-concurrency=1 test",
     "test:int": "pnpm -r --workspace-concurrency=1 test:int",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "e2e": "playwright test -c e2e/playwright.config.ts",
+    "e2e:up": "docker compose -f docker-compose.yml -f e2e/docker-compose.e2e.yml up -d --build",
+    "smoke": "tsx scripts/compose-smoke.ts",
+    "perf": "tsx scripts/perf.ts"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
@@ -25,6 +29,7 @@
     "typescript-eslint": "8.74.0",
     "vitest": "3.2.7",
     "eslint-plugin-boundaries": "5.4.0",
-    "eslint-import-resolver-typescript": "4.4.4"
+    "eslint-import-resolver-typescript": "4.4.4",
+    "@playwright/test": "1.65.1"
   }
 }

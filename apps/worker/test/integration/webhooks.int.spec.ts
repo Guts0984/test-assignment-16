@@ -241,6 +241,28 @@ describe('stock events', () => {
 });
 
 describe('outbound safety', () => {
+  it('delivers to a host NAME (DNS lookup path) when private hosts are allowed, and refuses the same name when they are not', async () => {
+    const rcv = await startReceiver('whsec-0123456789abcdef');
+    try {
+      const url = rcv.url.replace('127.0.0.1', 'localhost');
+      const tc = testClock();
+      const { shop } = await makeShop(db, url);
+      const id = async (o: string) => (await db.scheduledAction.findFirstOrThrow({ where: { kind: 'webhook_stream', key: streamActionKey(shop.id, orderStream(o)) } })).id;
+      const o1 = randomUUID();
+      await orderEvents(shop.id, o1, 1, tc.clock);
+      const open = jobDeps(db, tc.clock, { webhooks: { encKey: ENC_KEY, timeoutMs: 1500, coalesceMs: 5000, allowPrivate: true } });
+      expect(await processAction(open, await id(o1), 'w')).toBe('done');
+      expect(rcv.got).toHaveLength(1);
+      const o2 = randomUUID();
+      await orderEvents(shop.id, o2, 1, tc.clock);
+      const closed = jobDeps(db, tc.clock, { webhooks: { encKey: ENC_KEY, timeoutMs: 1500, coalesceMs: 5000, allowPrivate: false } });
+      expect(await processAction(closed, await id(o2), 'w')).toBe('retry');
+      expect((await db.webhookEvent.findFirstOrThrow({ where: { shopId: shop.id, stream: orderStream(o2) } })).lastError).toBe('blocked');
+    } finally {
+      await rcv.close();
+    }
+  });
+
   it('private addresses are blocked unless allowed; redirects are not followed; a hanging receiver times out without blocking another shop', async () => {
     expect(
       [

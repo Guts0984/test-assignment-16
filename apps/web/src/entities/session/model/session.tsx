@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authControllerLogin, authControllerLogout } from '@/shared/api/generated/auth/auth';
 import type { MeDto } from '@/shared/api/generated/model';
-import { authControllerRefresh } from '@/shared/api/generated/auth/auth';
+import { refreshSession } from '@/shared/api/mutator';
 import { getAccessToken, setAccessToken } from '@/shared/api/token-store';
 
 export type Me = MeDto;
@@ -30,10 +30,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   // Restore the session from the httpOnly refresh cookie on first load.
   useEffect(() => {
     let alive = true;
-    authControllerRefresh({})
+    refreshSession()
       .then((s) => {
+        if (s === null) throw new Error('no session');
         setAccessToken(s.accessToken);
-        if (alive) setState({ status: 'authenticated', me: s.me, token: s.accessToken });
+        if (alive) setState({ status: 'authenticated', me: s.me as Me, token: s.accessToken });
       })
       .catch(() => alive && setState({ status: 'anonymous', me: null, token: null }));
     return () => {

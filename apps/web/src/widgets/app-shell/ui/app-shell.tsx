@@ -59,7 +59,7 @@ export const AppShell = ({
 }) => {
   const { status, me, logout } = useSession();
   const router = useRouter();
-  const warehouses = useMyWarehouses();
+  const warehouses = useMyWarehouses({ enabled: status === 'authenticated' && me !== null && !isShop(me) });
   useEffect(() => {
     if (status === 'anonymous') router.replace('/login');
   }, [status, router]);

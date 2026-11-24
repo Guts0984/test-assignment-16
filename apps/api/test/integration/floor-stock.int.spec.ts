@@ -1,6 +1,9 @@
 // Stock rules in-process: concurrent reserve, FEFO with minimum shelf life, fair re-reserve,
 // shortage relocation, stock counts with approval, cancel in every phase, transfers, cutoff.
 import { newEffects } from '@ff/core/effects';
+import { cancelOrder, packOrder } from '@ff/core/floor/outbound';
+import { scanItem } from '@ff/core/floor/picking';
+import { lockOrder } from '@ff/core/orders/transition';
 import { reserveOrder } from '@ff/core/floor/reserve';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startTestApp, type TestApp } from '../setup/app';
@@ -445,6 +448,65 @@ describe('transfers', () => {
       available: 3,
       receiving: 0,
     });
+    await expectBalanced(t);
+  });
+});
+
+describe('the order row lock (deterministic, not luck)', () => {
+  it('cancel, scan and pack all wait for whoever holds the order row, then run one after another', async () => {
+    const w = await world(t);
+    const sku = await newSku(w);
+    await stockUp(w, sku, 'A-001', 10);
+    const id = await placeOrder(w, [{ sku: sku.code, qty: 2 }]);
+    await drain(t);
+    const task = await startPicking(w);
+    const d = jobDeps(t);
+    const order = await t.db.order.findUniqueOrThrow({ where: { id } });
+    const state = { cancel: false, scan: false, pack: false };
+    const gate = { release: () => undefined as void };
+    const released = new Promise<void>((r) => (gate.release = r));
+    const entered = { go: () => undefined as void };
+    const inside = new Promise<void>((r) => (entered.go = r));
+    const holder = t.db.$transaction(async (tx) => {
+      await lockOrder(tx, id);
+      entered.go();
+      await released;
+    });
+    await inside;
+    const cancel = cancelOrder(
+      d,
+      newEffects(),
+      id,
+      { type: 'shop', id: null, role: 'shop' },
+      order.shopId,
+    ).finally(() => (state.cancel = true));
+    const scan = scanItem(d, newEffects(), task.id, w.picker1.id, {
+      lineId: task.lines[0].lineId,
+      cellCode: 'A-001',
+      barcode: sku.barcode,
+      qty: 1,
+      idempotencyKey: key(),
+    }).finally(() => (state.scan = true));
+    const pack = packOrder(
+      d,
+      newEffects(),
+      w.wh.id,
+      w.packer.id,
+      'packer',
+      order.externalNumber,
+      key(),
+    ).finally(() => (state.pack = true));
+    await new Promise((r) => setTimeout(r, 600));
+    expect(state).toEqual({ cancel: false, scan: false, pack: false });
+    gate.release();
+    await holder;
+    const [c, sc, pk] = await Promise.all([cancel, scan, pack]);
+    // whichever ran first decided the outcome; the rest saw a consistent state, none crashed
+    expect([
+      c.ok || ['ORDER_NOT_CANCELLABLE', 'NOT_FOUND'].includes(c.error.code),
+      sc.ok || ['ORDER_CANCELLED', 'TASK_NOT_ASSIGNED', 'LINE_COMPLETE'].includes(sc.error.code),
+      pk.ok || ['INVALID_TRANSITION', 'ORDER_CANCELLED', 'NOT_FOUND'].includes(pk.error.code),
+    ]).toEqual([true, true, true]);
     await expectBalanced(t);
   });
 });

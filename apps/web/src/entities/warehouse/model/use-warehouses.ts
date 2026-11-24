@@ -2,7 +2,8 @@
 
 import { useWarehousesControllerMine } from '@/shared/api/generated/warehouses/warehouses';
 
-export const useMyWarehouses = () => useWarehousesControllerMine();
+export const useMyWarehouses = (o: { enabled?: boolean } = {}) =>
+  useWarehousesControllerMine({ query: { enabled: o.enabled ?? true } });
 
 export const warehouseName = (
   list: readonly { id: string; code: string; name: string }[] | undefined,

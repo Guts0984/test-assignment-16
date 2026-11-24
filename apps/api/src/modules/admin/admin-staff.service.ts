@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { hash as argonHash, argon2id } from 'argon2';
+import { hashPassword } from '@ff/db/password';
 import { type Db } from '@ff/db/client';
 import { pgCode, SQLSTATE } from '@ff/db/pg-errors';
 import { type StaffRole } from '@ff/shared/domain';
@@ -35,7 +35,7 @@ export class AdminStaffService {
         data: {
           email: input.email,
           name: input.name,
-          passwordHash: await argonHash(input.password, { type: argon2id }),
+          passwordHash: await hashPassword(input.password),
           roles: {
             create: this.dedupe(input.roles).map((r) => ({ role: r.role, warehouseId: r.warehouseId })),
           },

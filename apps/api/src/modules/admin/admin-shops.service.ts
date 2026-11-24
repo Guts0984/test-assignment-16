@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { hash as argonHash, argon2id } from 'argon2';
+import { hashPassword } from '@ff/db/password';
 import { type Db } from '@ff/db/client';
 import { pgCode, SQLSTATE } from '@ff/db/pg-errors';
 import {
@@ -89,7 +89,7 @@ export class AdminShopsService {
           shopId,
           email: u.email,
           name: u.name,
-          passwordHash: await argonHash(u.password, { type: argon2id }),
+          passwordHash: await hashPassword(u.password),
         },
       });
       return ok({ id: row.id, shopId: row.shopId, email: row.email, name: row.name });
