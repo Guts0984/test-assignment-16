@@ -93,10 +93,36 @@ export const createApp = async (env: ApiEnv = apiEnv()): Promise<NestExpressAppl
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new AllExceptionsFilter());
   const redis = app.get<Redis>(REDIS);
-  app.useWebSocketAdapter(new RedisIoAdapter(app, redis.duplicate(), redis.duplicate()));
-  app.enableShutdownHooks();
+  const pub = redis.duplicate();
+  const sub = redis.duplicate();
+  app.useWebSocketAdapter(new RedisIoAdapter(app, pub, sub));
+  closers.set(app, async () => {
+    await Promise.allSettled([pub.quit(), sub.quit(), redis.quit()]);
+  });
   SwaggerModule.setup('docs', app, buildOpenApi(app));
   return app;
+};
+
+const closers = new WeakMap<INestApplication, () => Promise<void>>();
+
+/** Graceful stop on SIGTERM/SIGINT: stop accepting, close sockets and Redis, exit; force-exit as a last resort. */
+const stopOnSignals = (app: INestApplication): void => {
+  let stopping = false;
+  const stop = (signal: string) => {
+    if (stopping) return;
+    stopping = true;
+    new Logger('bootstrap').log(`${signal} received, shutting down`);
+    const force = setTimeout(() => process.exit(1), 8_000);
+    force.unref();
+    const server = app.getHttpServer() as import('node:http').Server;
+    server.closeIdleConnections();
+    void app
+      .close()
+      .then(() => closers.get(app)?.())
+      .finally(() => process.exit(0));
+  };
+  process.once('SIGTERM', () => stop('SIGTERM'));
+  process.once('SIGINT', () => stop('SIGINT'));
 };
 
 export const listen = async (app: INestApplication, port: number): Promise<void> => {
@@ -105,5 +131,6 @@ export const listen = async (app: INestApplication, port: number): Promise<void>
   server.requestTimeout = 30_000;
   server.keepAliveTimeout = 5_000;
   await app.listen(port, '0.0.0.0');
+  stopOnSignals(app);
   new Logger('bootstrap').log(`api listening on ${port}`);
 };

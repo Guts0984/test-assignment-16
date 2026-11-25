@@ -225,3 +225,97 @@ export function useSystemControllerHealth<TData = Awaited<ReturnType<typeof syst
 
 
 
+export const getSystemControllerReadyUrl = () => {
+
+
+  
+
+  return `/api/ready`
+}
+
+export const systemControllerReady = async ( options?: RequestInit): Promise<HealthDto> => {
+  
+  return apiFetch<HealthDto>(getSystemControllerReadyUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getSystemControllerReadyQueryKey = () => {
+    return [
+    `/api/ready`
+    ] as const;
+    }
+
+    
+export const getSystemControllerReadyQueryOptions = <TData = Awaited<ReturnType<typeof systemControllerReady>>, TError = ErrorBodyDto>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof systemControllerReady>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSystemControllerReadyQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof systemControllerReady>>> = ({ signal }) => systemControllerReady({ signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof systemControllerReady>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SystemControllerReadyQueryResult = NonNullable<Awaited<ReturnType<typeof systemControllerReady>>>
+export type SystemControllerReadyQueryError = ErrorBodyDto
+
+
+export function useSystemControllerReady<TData = Awaited<ReturnType<typeof systemControllerReady>>, TError = ErrorBodyDto>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof systemControllerReady>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof systemControllerReady>>,
+          TError,
+          Awaited<ReturnType<typeof systemControllerReady>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSystemControllerReady<TData = Awaited<ReturnType<typeof systemControllerReady>>, TError = ErrorBodyDto>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof systemControllerReady>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof systemControllerReady>>,
+          TError,
+          Awaited<ReturnType<typeof systemControllerReady>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSystemControllerReady<TData = Awaited<ReturnType<typeof systemControllerReady>>, TError = ErrorBodyDto>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof systemControllerReady>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useSystemControllerReady<TData = Awaited<ReturnType<typeof systemControllerReady>>, TError = ErrorBodyDto>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof systemControllerReady>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSystemControllerReadyQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+

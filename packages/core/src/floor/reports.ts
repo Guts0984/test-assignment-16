@@ -9,15 +9,27 @@ export type ReportFilter = {
   readonly staffId?: string;
 };
 
-const range = (f: ReportFilter) => ({
-  start: new Date(`${f.from}T00:00:00Z`),
-  end: new Date(Date.parse(`${f.to}T00:00:00Z`) + 86_400_000),
-});
+const DAY_MS = 86_400_000;
+/**
+ * The period is whole local days of each warehouse (its own time zone). The UTC prefilter (+-15 h
+ * covers every zone) keeps the time index usable; the exact test is the warehouse-local midnight.
+ */
+/** Per-warehouse local-day bounds, computed once per warehouse (not once per row). */
+const bounds = (f: ReportFilter, col: string) =>
+  Prisma.sql`JOIN (
+    SELECT id, (${f.from}::date)::timestamp AT TIME ZONE time_zone AS lo,
+           (${f.to}::date + 1)::timestamp AT TIME ZONE time_zone AS hi
+    FROM warehouses) b ON b.id = ${Prisma.raw(col)}`;
+const within = (col: string, f: ReportFilter) => {
+  const c = Prisma.raw(col);
+  const lo = new Date(Date.parse(`${f.from}T00:00:00Z`) - 15 * 3_600_000);
+  const hi = new Date(Date.parse(`${f.to}T00:00:00Z`) + DAY_MS + 15 * 3_600_000);
+  return Prisma.sql`${c} >= ${lo} AND ${c} < ${hi} AND ${c} >= b.lo AND ${c} < b.hi`;
+};
 const whFilter = (col: string, ids: readonly string[] | null) =>
   ids === null ? Prisma.empty : Prisma.sql`AND ${Prisma.raw(col)} = ANY(${[...ids]}::uuid[])`;
 
 export const periodReport = async (db: Db, f: ReportFilter) => {
-  const { start, end } = range(f);
   const staff = f.staffId === undefined ? Prisma.empty : Prisma.sql`AND x.person = ${f.staffId}::uuid`;
   const [orders, byWarehouse, shortages, adjustments] = await Promise.all([
     db.$queryRaw<{ shipped: number; on_time: number; median_min: number | null; p90_min: number | null }[]>`
@@ -25,7 +37,7 @@ export const periodReport = async (db: Db, f: ReportFilter) => {
              count(*) FILTER (WHERE o.packed_at < o.target_cutoff_at)::int AS on_time,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM o.shipped_at - o.received_at) / 60)::float8 AS median_min,
              percentile_cont(0.9) WITHIN GROUP (ORDER BY extract(epoch FROM o.shipped_at - o.received_at) / 60)::float8 AS p90_min
-      FROM orders o WHERE o.status = 'shipped' AND o.shipped_at >= ${start} AND o.shipped_at < ${end} ${whFilter('o.warehouse_id', f.warehouseIds)}`,
+      FROM orders o ${bounds(f, 'o.warehouse_id')} WHERE o.status = 'shipped' AND ${within('o.shipped_at', f)} ${whFilter('o.warehouse_id', f.warehouseIds)}`,
     db.$queryRaw<
       {
         warehouse_id: string;
@@ -40,24 +52,24 @@ export const periodReport = async (db: Db, f: ReportFilter) => {
              count(*) FILTER (WHERE o.packed_at < o.target_cutoff_at)::int AS on_time,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM o.shipped_at - o.received_at) / 60)::float8 AS median_min,
              percentile_cont(0.9) WITHIN GROUP (ORDER BY extract(epoch FROM o.shipped_at - o.received_at) / 60)::float8 AS p90_min
-      FROM orders o JOIN warehouses w ON w.id = o.warehouse_id
-      WHERE o.status = 'shipped' AND o.shipped_at >= ${start} AND o.shipped_at < ${end} ${whFilter('o.warehouse_id', f.warehouseIds)}
+      FROM orders o JOIN warehouses w ON w.id = o.warehouse_id ${bounds(f, 'o.warehouse_id')}
+      WHERE o.status = 'shipped' AND ${within('o.shipped_at', f)} ${whFilter('o.warehouse_id', f.warehouseIds)}
       GROUP BY o.warehouse_id, w.code ORDER BY w.code`,
     db.$queryRaw<
       { warehouse_id: string; code: string; person: string; name: string; events: number; units: number }[]
     >`
       SELECT x.warehouse_id, w.code, x.person, s.name, count(*)::int AS events, SUM(x.units)::int AS units
       FROM (SELECT warehouse_id, picker_id AS person, (expected_qty - found_qty) AS units, created_at FROM shortages) x
-      JOIN warehouses w ON w.id = x.warehouse_id JOIN staff s ON s.id = x.person
-      WHERE x.created_at >= ${start} AND x.created_at < ${end} ${whFilter('x.warehouse_id', f.warehouseIds)} ${staff}
+      JOIN warehouses w ON w.id = x.warehouse_id ${bounds(f, 'x.warehouse_id')} JOIN staff s ON s.id = x.person
+      WHERE ${within('x.created_at', f)} ${whFilter('x.warehouse_id', f.warehouseIds)} ${staff}
       GROUP BY x.warehouse_id, w.code, x.person, s.name ORDER BY w.code, s.name`,
     db.$queryRaw<
       { warehouse_id: string; code: string; person: string; name: string; events: number; units: number }[]
     >`
       SELECT x.warehouse_id, w.code, x.person, s.name, count(*)::int AS events, SUM(abs(x.delta))::int AS units
       FROM (SELECT warehouse_id, author_id AS person, delta, created_at FROM adjustments) x
-      JOIN warehouses w ON w.id = x.warehouse_id JOIN staff s ON s.id = x.person
-      WHERE x.created_at >= ${start} AND x.created_at < ${end} ${whFilter('x.warehouse_id', f.warehouseIds)} ${staff}
+      JOIN warehouses w ON w.id = x.warehouse_id ${bounds(f, 'x.warehouse_id')} JOIN staff s ON s.id = x.person
+      WHERE ${within('x.created_at', f)} ${whFilter('x.warehouse_id', f.warehouseIds)} ${staff}
       GROUP BY x.warehouse_id, w.code, x.person, s.name ORDER BY w.code, s.name`,
   ]);
   const total = orders[0] ?? { shipped: 0, on_time: 0, median_min: null, p90_min: null };

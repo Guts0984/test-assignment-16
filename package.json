@@ -15,7 +15,11 @@
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "e2e:up": "docker compose -f docker-compose.yml -f e2e/docker-compose.e2e.yml up -d --build",
     "smoke": "tsx scripts/compose-smoke.ts",
-    "perf": "tsx scripts/perf.ts"
+    "perf": "tsx scripts/perf.ts",
+    "readme-check": "tsx scripts/readme-check.ts",
+    "mutation": "tsx scripts/mutation-check.ts",
+    "acceptance": "tsx scripts/acceptance.ts",
+    "verify-history": "bash scripts/verify-history.sh"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

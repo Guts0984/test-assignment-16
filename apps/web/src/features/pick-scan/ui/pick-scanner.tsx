@@ -36,16 +36,25 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
   const [empty, setEmpty] = useState(false);
   const [short, setShort] = useState<{ found: string } | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  // The idempotency key of a scan whose outcome is unknown (dropped connection). A resend of the same
+  // scan reuses it, so the server counts it once.
+  const pending = useRef<{ fingerprint: string; key: string } | null>(null);
   const refocus = () => requestAnimationFrame(() => input.current?.focus());
 
   // Focus recovery: any click elsewhere or window focus returns the cursor to the scan field.
   useEffect(() => {
     const back = () => refocus();
+    // Clicks on other form controls keep their focus (shortage form, batch field).
+    const onClick = (e: MouseEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLElement && t.closest('input, select, textarea, label') !== null) return;
+      refocus();
+    };
     window.addEventListener('focus', back);
-    document.addEventListener('click', back);
+    document.addEventListener('click', onClick);
     return () => {
       window.removeEventListener('focus', back);
-      document.removeEventListener('click', back);
+      document.removeEventListener('click', onClick);
     };
   }, []);
 
@@ -90,6 +99,9 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
       }
       return;
     }
+    const fingerprint = [task.id, line.lineId, line.cellCode, value, batch].join('|');
+    const key = pending.current?.fingerprint === fingerprint ? pending.current.key : newIdempotencyKey();
+    pending.current = { fingerprint, key };
     try {
       const r = await scan.mutateAsync({
         warehouseId,
@@ -100,9 +112,10 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
           barcode: value,
           ...(line.tracksExpiry && batch !== '' ? { batchCode: batch } : {}),
           qty: 1,
-          idempotencyKey: newIdempotencyKey(),
+          idempotencyKey: key,
         },
       });
+      pending.current = null;
       playBeep('ok');
       if (r.taskDone) {
         const finished = task.lines.map((l) =>
@@ -118,12 +131,16 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
       }
     } catch (e) {
       const { code, message } = errOf(e);
+      if (code !== 'NETWORK') pending.current = null;
       fail(code, message);
     }
   };
 
   const reportShortage = async () => {
     if (task === null || line === undefined || short === null) return;
+    const fingerprint = `${task.id}|${line.lineId}|${short.found}`;
+    const key = pending.current?.fingerprint === fingerprint ? pending.current.key : newIdempotencyKey();
+    pending.current = { fingerprint, key };
     try {
       const t = await shortage.mutateAsync({
         warehouseId,
@@ -131,9 +148,10 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
         data: {
           lineId: line.lineId,
           foundQty: Number(short.found || 0),
-          idempotencyKey: newIdempotencyKey(),
+          idempotencyKey: key,
         },
       });
+      pending.current = null;
       setTask(t);
       setShort(null);
       setUi({
@@ -142,6 +160,7 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
       });
     } catch (e) {
       const { code, message } = errOf(e);
+      if (code !== 'NETWORK') pending.current = null;
       fail(code, message);
     }
     refocus();

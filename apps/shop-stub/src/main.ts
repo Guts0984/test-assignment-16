@@ -39,6 +39,9 @@ const main = async (): Promise<void> => {
     controlToken: env.SHOP_STUB_CONTROL_ENABLED ? (env.TEST_CONTROL_TOKEN ?? null) : null,
   });
   await app.listen({ port: env.SHOP_STUB_PORT, host: '0.0.0.0' });
+  const stop = () => void app.close().finally(() => process.exit(0));
+  process.once('SIGTERM', stop);
+  process.once('SIGINT', stop);
   process.stdout.write(`shop stub listening on ${env.SHOP_STUB_PORT}\n`);
 };
 

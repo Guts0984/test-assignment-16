@@ -265,14 +265,7 @@ export const workers = {
       .filter((w) => w !== null).length,
 };
 
-const redisContainer = (): string => {
-  const id =
-    execFileSync('docker', ['ps', '-aq', '--filter', 'name=fulfillment-redis'], { encoding: 'utf8' })
-      .trim()
-      .split('\n')[0] ?? '';
-  if (id === '') throw new Error('redis container not found (docker compose up -d redis postgres)');
-  return id;
-};
+const redisContainer = (): string => getStack().redisContainer;
 
 export const redis = {
   flushAll: async (): Promise<void> => {

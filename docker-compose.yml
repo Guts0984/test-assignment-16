@@ -31,6 +31,7 @@ x-api-env: &api-env
   JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
   JWT_ACCESS_TTL_SEC: ${JWT_ACCESS_TTL_SEC}
   JWT_REFRESH_TTL_SEC: ${JWT_REFRESH_TTL_SEC}
+  REFRESH_REUSE_GRACE_SEC: ${REFRESH_REUSE_GRACE_SEC:-10}
   COOKIE_SECURE: ${COOKIE_SECURE}
   API_KEY_PEPPER: ${API_KEY_PEPPER}
   CORS_ORIGINS: ${CORS_ORIGINS}
@@ -40,6 +41,7 @@ x-api-env: &api-env
   RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS}
   RATE_LIMIT_LOGIN_PER_IP: ${RATE_LIMIT_LOGIN_PER_IP}
   RATE_LIMIT_LOGIN_PER_ACCOUNT: ${RATE_LIMIT_LOGIN_PER_ACCOUNT}
+  RATE_LIMIT_LOGIN_PER_ACCOUNT_TOTAL: ${RATE_LIMIT_LOGIN_PER_ACCOUNT_TOTAL:-100}
   RATE_LIMIT_GENERAL_PER_IP: ${RATE_LIMIT_GENERAL_PER_IP}
   RATE_LIMIT_SHOP_API_PER_KEY: ${RATE_LIMIT_SHOP_API_PER_KEY}
   RATE_LIMIT_SHOP_API_PER_IP: ${RATE_LIMIT_SHOP_API_PER_IP}
@@ -50,6 +52,7 @@ x-api-env: &api-env
 x-api: &api
   build: { context: ., target: api }
   restart: unless-stopped
+  init: true
   depends_on:
     migrate: { condition: service_completed_successfully }
     redis: { condition: service_healthy }
@@ -161,6 +164,7 @@ services:
   shop-stub:
     build: { context: ., target: shop-stub }
     restart: unless-stopped
+    init: true
     depends_on:
       migrate: { condition: service_completed_successfully }
     environment:

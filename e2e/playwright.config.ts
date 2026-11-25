@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 
 // Runs against the full docker compose stack (nginx, two api copies, workers, web, shop stub).
 if (existsSync('.env')) process.loadEnvFile('.env');
-const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:28080';
+const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:8080';
 
 export default defineConfig({
   testDir: '.',

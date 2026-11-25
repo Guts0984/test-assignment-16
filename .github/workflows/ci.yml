@@ -76,12 +76,7 @@ jobs:
         env: { POSTGRES_USER: fulfillment, POSTGRES_PASSWORD: change-me-postgres, POSTGRES_DB: fulfillment }
         ports: ['25432:5432']
         options: >-
-          --name fulfillment-postgres-1 --health-cmd "pg_isready -U fulfillment" --health-interval 2s --health-timeout 3s --health-retries 30
-      redis:
-        image: redis:7
-        ports: ['26379:6379']
-        options: >-
-          --name fulfillment-redis-1 --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 30
+          --health-cmd "pg_isready -U fulfillment" --health-interval 2s --health-timeout 3s --health-retries 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -19,7 +19,13 @@ import { hasRoleAt, warehousesOf, type Principal } from '../../common/auth/princ
 import { AuthService } from '../auth/auth.service';
 import { clearPresence, touchPresence } from './presence';
 
-type Data = { principal?: Principal; budget?: { second: number; used: number; strikes: number } };
+type Data = {
+  token?: string;
+  watcher?: NodeJS.Timeout;
+  leadRooms?: Map<string, string>;
+  principal?: Principal;
+  budget?: { second: number; used: number; strikes: number };
+};
 const subscribeSchema = z.object({ warehouseId: z.string().uuid() }).strict();
 
 /** Rooms a principal is entitled to, derived on the server only. */
@@ -32,6 +38,15 @@ export const roomsFor = (p: Principal): readonly string[] => {
     ...(floor === 'all' ? [] : floor.map(rooms.floor)),
     ...(p.roles.some((r) => r.role === 'picker') ? [rooms.picker(p.id)] : []),
   ];
+};
+
+/** Leaves every room the principal is no longer entitled to (extra lead rooms need shift_lead still). */
+const syncRooms = (socket: Socket, p: Principal): void => {
+  const extra = [...((socket.data as Data).leadRooms ?? new Map<string, string>())]
+    .filter(([, warehouseId]) => hasRoleAt(p, warehouseId, ['shift_lead']))
+    .map(([room]) => room);
+  const allowed = new Set([...roomsFor(p), ...extra]);
+  for (const room of socket.rooms) if (room !== socket.id && !allowed.has(room)) void socket.leave(room);
 };
 
 const pickerWarehouses = (p: Principal): readonly string[] => {
@@ -59,6 +74,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     const data = socket.data as Data;
     data.principal = r.value;
+    if (typeof token === 'string') data.token = token;
     await socket.join([...roomsFor(r.value)]);
     if (r.value.kind === 'staff')
       await touchPresence(
@@ -67,10 +83,36 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         r.value.id,
         this.env.SOCKET_PRESENCE_TTL_SEC,
       ).catch(() => undefined);
+    // The socket may have gone while the checks above were awaited: starting the timer now would leak it.
+    if (socket.disconnected) return;
+    // Rights are re-checked from the database while the socket lives: logout, a revoked session or a
+    // removed role end the matching rooms (or the connection) within one interval.
+    data.watcher = setInterval(
+      () => void this.recheck(socket),
+      Math.max(1000, (this.env.SOCKET_PRESENCE_TTL_SEC * 1000) / 3),
+    );
     socket.emit('ready', { rooms: [...socket.rooms].filter((x) => x !== socket.id) });
   }
 
+  /** Re-resolves the socket's token; drops the socket or every room the principal no longer holds. */
+  private async recheck(socket: Socket): Promise<void> {
+    const data = socket.data as Data;
+    const r = await this.auth
+      .resolveBearer(data.token === undefined ? undefined : `Bearer ${data.token}`)
+      .catch(() => null);
+    if (r === null) return; // database trouble: keep the socket, try again next tick
+    if (!r.ok) {
+      socket.emit('auth_error', { code: r.error.code });
+      socket.disconnect(true);
+      return;
+    }
+    data.principal = r.value;
+    syncRooms(socket, r.value);
+  }
+
   async handleDisconnect(socket: Socket): Promise<void> {
+    const w = (socket.data as Data).watcher;
+    if (w !== undefined) clearInterval(w);
     const p = (socket.data as Data).principal;
     if (p?.kind === 'staff')
       await clearPresence(this.redis, pickerWarehouses(p), p.id).catch(() => undefined);
@@ -105,6 +147,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const parsed = subscribeSchema.safeParse(body);
     if (p === undefined || !parsed.success) return { ok: false, error: 'VALIDATION_FAILED' };
     if (!hasRoleAt(p, parsed.data.warehouseId, ['shift_lead'])) return { ok: false, error: 'FORBIDDEN' };
+    const data = socket.data as Data;
+    data.leadRooms = new Map([
+      ...(data.leadRooms ?? []),
+      [rooms.lead(parsed.data.warehouseId), parsed.data.warehouseId],
+    ]);
     void socket.join(rooms.lead(parsed.data.warehouseId));
     return { ok: true };
   }
@@ -119,7 +166,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       socket.disconnect(true);
       return { ok: false };
     }
-    (socket.data as Data).principal = r.value;
+    const data = socket.data as Data;
+    data.principal = r.value;
+    if (typeof token === 'string') data.token = token; // the re-check follows the client's fresh token
+    syncRooms(socket, r.value);
     if (r.value.kind === 'staff')
       await touchPresence(
         this.redis,

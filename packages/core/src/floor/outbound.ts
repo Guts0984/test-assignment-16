@@ -59,8 +59,25 @@ export const packOrder = (
       if (order === null) return fail('NOT_FOUND', 'no such order at this warehouse');
       if (order.status === 'cancelled')
         return fail('ORDER_CANCELLED', 'the order was cancelled; take the goods to the return cell');
+      if (order.status === 'packed') {
+        // Scanning a packed order again reprints: same answer, no change.
+        const [again] = await tx.$queryRaw<{ ship_day: string; packed_at: Date }[]>`
+          SELECT to_char(ship_day, 'YYYY-MM-DD') AS ship_day, packed_at FROM orders WHERE id = ${id}::uuid`;
+        if (again !== undefined)
+          return ok({
+            orderId: id,
+            orderNumber: order.externalNumber,
+            shipDay: again.ship_day,
+            packedAt: again.packed_at.toISOString(),
+          });
+      }
       if (order.status !== 'picked')
-        return fail('INVALID_TRANSITION', `order is ${order.status}, it can be packed only when picked`);
+        return fail(
+          'INVALID_TRANSITION',
+          order.status === 'shipped'
+            ? 'the order was already shipped'
+            : `order is ${order.status}; it can be packed only when fully picked`,
+        );
       const wh = await loadWarehouse(tx, warehouseId);
       if (wh === null) return fail('NOT_FOUND', 'warehouse not found');
       const shipDay = shipDayFor(now, wh);
@@ -134,6 +151,10 @@ export const shipOrders = async (
     const r = await runTx<boolean>(d.db, outer, async (tx, fx) => {
       const order = await lockOrder(tx, id);
       if (order === null || order.warehouseId !== warehouseId || order.status !== 'packed') return ok(false);
+      // Explicitly listed orders obey the ship day too: nothing leaves before it.
+      const [day] = await tx.$queryRaw<{ due: boolean }[]>`
+        SELECT (ship_day IS NULL OR ship_day <= ${today}::date) AS due FROM orders WHERE id = ${id}::uuid`;
+      if (day?.due !== true) return ok(false);
       const moved = await shipLocked(
         ctxOf(tx, fx, d, { type: 'staff', id: actorId }, 'shipment', id, d.clock.now()),
         order,

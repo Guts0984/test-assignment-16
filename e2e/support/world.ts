@@ -1,7 +1,7 @@
 // Test data for the browser journeys, created through the real api (nginx), never by touching the db.
 import { randomUUID } from 'node:crypto';
 
-export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:28080';
+export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:8080';
 export const STUB = `http://localhost:${process.env.SHOP_STUB_HOST_PORT ?? '24000'}`;
 export const PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'demo-password-123';
 const CONTROL = process.env.TEST_CONTROL_TOKEN ?? '';

@@ -104,6 +104,7 @@ describe('route guards', () => {
       'post /api/auth/logout',
       'get /api/time',
       'get /api/health',
+      'get /api/ready',
     ]);
     const ops = Object.entries(doc.paths).flatMap(([p, item]) =>
       Object.keys(item)

@@ -114,19 +114,40 @@ describe('limits by real client IP', () => {
     expect(res.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(30);
   });
 
-  it('a single account is limited across IPs without locking out other accounts', async () => {
+  it('a stranger hammering a known email is limited on their own address and cannot lock the owner out', async () => {
     const w = await newWorld();
     const email = (await getStack().db.staff.findUniqueOrThrow({ where: { id: w.picker1.id } })).email;
     const other = (await getStack().db.staff.findUniqueOrThrow({ where: { id: w.picker2.id } })).email;
     await alignWindow();
+    const attacker = nextIp();
     const res = await burst(30, (i) =>
-      client({ sourceIp: nextIp() }).post('/api/auth/login', { email, password: `wrong-${i}-password` }),
+      client({ sourceIp: attacker }).post('/api/auth/login', { email, password: `wrong-${i}-password` }),
     );
-    expect(res.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(15);
+    expect(res.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(10);
+    // the owner, from another address, still gets in with the right password
+    expect(
+      (await client({ sourceIp: nextIp() }).post('/api/auth/login', { email, password: PASSWORD })).status,
+    ).toBe(200);
     expect(
       (await client({ sourceIp: nextIp() }).post('/api/auth/login', { email: other, password: PASSWORD }))
         .status,
     ).toBe(200);
+  });
+
+  it('many addresses cannot multiply guesses at one account without limit: a total budget applies', async () => {
+    const w = await newWorld();
+    const email = (await getStack().db.staff.findUniqueOrThrow({ where: { id: w.picker1.id } })).email;
+    await alignWindow();
+    const ips = Array.from({ length: 8 }, () => nextIp());
+    const res = await burst(80, (i) =>
+      client({ sourceIp: ips[i % ips.length] ?? nextIp() }).post('/api/auth/login', {
+        email,
+        password: `wrong-${i}-password`,
+      }),
+    );
+    // each address stays under its own 10; the account total (40 in this stack) stops the rest
+    expect(res.filter((r) => r.status === 401).length).toBeLessThanOrEqual(40);
+    expect(res.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(35);
   });
 
   it('recovers in the next window', async () => {

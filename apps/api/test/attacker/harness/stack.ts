@@ -29,6 +29,8 @@ export type StackInfo = {
   readonly stub: string;
   readonly databaseUrl: string;
   readonly redisUrl: string;
+  /** Name of this run's private Redis container. */
+  readonly redisContainer: string;
   readonly controlToken: string;
   readonly env: Readonly<Record<string, string>>;
 };
@@ -69,10 +71,35 @@ const waitHttp = async (url: string, ms = 60_000): Promise<void> => {
 export const startStack = async (): Promise<Stack> => {
   const dot = loadDotEnv();
   const dbUrl = (dot.TEST_DATABASE_URL ?? '').replace(/_test$/, '_adv_test');
-  const redisUrl = (dot.TEST_REDIS_URL ?? '').replace(/\/\d+$/, '/5');
   await resetTestDatabase(dbUrl);
   const controlToken = 'adversarial-control-token';
-  const [pa, pb, ps, pn] = await Promise.all([freePort(), freePort(), freePort(), freePort()]);
+  const [pa, pb, ps, pn, pr] = await Promise.all([
+    freePort(),
+    freePort(),
+    freePort(),
+    freePort(),
+    freePort(),
+  ]);
+  // A private Redis for this run: the suite flushes, stops and restarts it, which must never touch
+  // the developer's live compose Redis.
+  const redisContainer = `ff-adv-redis-${process.pid}`;
+  const redisUrl = `redis://127.0.0.1:${pr}/0`;
+  execFileSync('docker', ['rm', '-f', redisContainer], { stdio: 'ignore' });
+  execFileSync('docker', ['run', '-d', '--name', redisContainer, '-p', `127.0.0.1:${pr}:6379`, 'redis:7'], {
+    stdio: 'ignore',
+  });
+  for (let i = 0; i < 100; i += 1) {
+    try {
+      if (
+        execFileSync('docker', ['exec', redisContainer, 'redis-cli', 'ping'], { encoding: 'utf8' }).trim() ===
+        'PONG'
+      )
+        break;
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
   const base: Record<string, string> = {
     ...dot,
     NODE_ENV: 'production',
@@ -94,6 +121,10 @@ export const startStack = async (): Promise<Stack> => {
     // the rate-limit specs depend on these exact values
     RATE_LIMIT_LOGIN_PER_IP: '20',
     RATE_LIMIT_LOGIN_PER_ACCOUNT: '10',
+    // CI's Postgres allows 100 connections: two api copies and up to three workers must fit with the test's own
+    DB_POOL_SIZE: '8',
+    RATE_LIMIT_LOGIN_PER_ACCOUNT_TOTAL: '40',
+    REFRESH_REUSE_GRACE_SEC: '0', // the strict single-use specs; the grace window has its own integration test
     WEBHOOK_MAX_ATTEMPTS: '4',
     WEBHOOK_BACKOFF_BASE_MS: '300',
     CORS_ORIGINS: 'http://allowed.example',
@@ -166,7 +197,7 @@ export const startStack = async (): Promise<Stack> => {
   const db = createDb({ url: dbUrl, poolSize: 5 });
   const stopAll = async (): Promise<void> => {
     await db.$disconnect();
-    execFileSync('docker', ['rm', '-f', name], { stdio: 'ignore' });
+    execFileSync('docker', ['rm', '-f', name, redisContainer], { stdio: 'ignore' });
     await Promise.all(
       procs.map(
         (p) =>
@@ -187,6 +218,7 @@ export const startStack = async (): Promise<Stack> => {
     stub: `http://127.0.0.1:${ps}`,
     databaseUrl: dbUrl,
     redisUrl,
+    redisContainer,
     controlToken,
     env: base,
     db,

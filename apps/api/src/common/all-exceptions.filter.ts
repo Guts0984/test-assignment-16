@@ -46,6 +46,20 @@ const fromParser = (e: unknown): Mapped | null => {
   return null;
 };
 
+/** Prisma / driver errors that mean "the database cannot be reached right now". */
+const isDatabaseDown = (e: unknown): boolean => {
+  const code = (e as { code?: unknown } | null)?.code;
+  const name = (e as { name?: unknown } | null)?.name;
+  return (
+    name === 'PrismaClientInitializationError' ||
+    (typeof code === 'string' &&
+      ['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'ECONNREFUSED', 'ECONNRESET'].includes(code)) ||
+    (typeof code === 'string' && code.startsWith('08')) ||
+    code === SQLSTATE_ADMIN_SHUTDOWN
+  );
+};
+const SQLSTATE_ADMIN_SHUTDOWN = '57P01';
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('errors');
@@ -85,6 +99,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (pg === SQLSTATE.deadlock || pg === SQLSTATE.serialization) {
       return { code: 'CONFLICT', message: 'concurrent update, please retry' };
     }
+    if (isDatabaseDown(e) || (pg !== null && isDatabaseDown({ code: pg })))
+      return { code: 'UNAVAILABLE', message: 'the service is temporarily unavailable' };
     return { code: 'UNEXPECTED', message: 'unexpected error' };
   }
 }

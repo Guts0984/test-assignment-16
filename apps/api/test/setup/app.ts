@@ -18,6 +18,7 @@ export const startTestApp = async (overrides: Record<string, string> = {}): Prom
     ...rawEnv(),
     LOG_LEVEL: rawEnv().TEST_LOG_LEVEL ?? 'silent',
     NODE_ENV: 'test',
+    REFRESH_REUSE_GRACE_SEC: '0',
     ...overrides,
   });
   const app = await createApp(env);

@@ -1,6 +1,6 @@
 # plan.md — Fulfillment warehouse for online shops
 
-Status: **Phase 1: building.** See the checklist in section 9.
+Status: **Phase 1 finished.** Every block is committed; results are in section 10.
 
 Sources of truth, highest first: `ASSIGNMENT.md` → this plan (after approval) → `CLAUDE.md` → `.claude/skills/adversarial-testing/SKILL.md` → defaults.
 
@@ -235,6 +235,11 @@ I found no direct conflict between ASSIGNMENT.md and CLAUDE.md. The items below 
 | D-5 | CLAUDE.md lists "holidays" in shipping-day calculation. The assignment only says "working days" | Superset: a warehouse has working weekdays plus an optional list of holiday dates (default empty). No assignment rule changes. |
 | D-6 | CLAUDE.md's suggested commit 5 ("redis infra, rate limiter") comes before commit 6 ("api core"), but a rate limiter needs a Nest app to guard | B5 ships the limiter as a framework-free function plus its Nest guard, tested against real Redis with a minimal Nest test app. B6 wires it to the real routes. |
 
+| D-7 | The plan put the adversarial stack on docker compose. Per-IP tests need real distinct source addresses, which docker's published ports hide behind the bridge gateway | The adversarial suite starts the api copies, workers and stub as **child processes** (so they can be `kill -9`'d) and nginx in a docker container with **host networking** and the real `infra/nginx/nginx.conf`; Postgres and Redis come from compose. The Playwright journeys and the smoke test do use the full compose stack. |
+| D-8 | CLAUDE.md lists a nightly report rollup in the plan (A-8) | Not built: the 90-day report on the full seed measures 48 ms against a 1 s budget with plain indexes, so a rollup would be dead weight. |
+| D-9 | Plan A-2 said pnpm 9, Node 22 in images | pnpm 12.6 (what is installed); images use Node 22 LTS. Dependency majors are pinned to mature lines (TypeScript 5.9, ESLint 9, Vitest 3, Prisma 6, NestJS 11, zod 3.25, Next 15, BullMQ 5, nestjs-zod 5 for OpenAPI from zod 3). |
+| D-10 | The adversarial suite is one entry file importing the specs in a fixed order | The last spec checks the ledger of everything before it (acceptance #13), so order matters; Vitest's own ordering put it first. |
+
 ---
 
 ## 3. Assumptions and decisions (all copied into README "Decisions")
@@ -283,8 +288,10 @@ I found no direct conflict between ASSIGNMENT.md and CLAUDE.md. The items below 
 | A-40 | Input limits | Order: 1–500 lines, qty integer 1…100 000, duplicate SKU lines rejected (`DUPLICATE_LINE`), strings ≤ 500 chars, NFC-normalised. JSON depth ≤ 20, `__proto__`/`constructor` keys rejected. Unknown fields rejected (zod `.strict()`, which blocks mass assignment). Pagination: `limit` 1…200, cursor-based. |
 | A-41 | Error format | `{ error: { code: string, message: string, fields?: [{ path, code, message }], requestId } }`. One global exception filter maps zod, domain `Result` errors, Prisma known errors and everything else to it. Unknown errors → 500 with `code: "UNEXPECTED"` and no internals; a test asserts no endpoint ever reaches it with fuzzed input. |
 | A-42 | Distance between warehouses for transfers | Not modelled. A transfer leaves stock in `TRANSIT` until the destination receives it. |
-| A-43 | Host ports | Other local projects use 8080/5433/6380, so compose publishes nginx on 28080, postgres on 25432, redis on 26379 and the stub on 24000 (all in `.env`). Compose network 172.31.116.0/24 with nginx pinned at .10. |
+| A-43 | Host ports | The user asked for nginx on host port 8080 (it was 28080 until the review fixes). Postgres (25432), redis (26379) and the stub (24000) stay off the common database ports (all in `.env`). If 8080 is taken on the host, change `NGINX_HOST_PORT` (and `CORS_ORIGINS`, `E2E_BASE_URL`) in `.env`. Compose network 172.31.116.0/24 with nginx pinned at .10. |
 | A-44 | Test databases | Each package's integration tests use their own database (`fulfillment_<pkg>_test`) and Redis db index, dropped and migrated at start, so packages never interfere. |
+| A-46 | Password hashing | argon2id with the OWASP minimum (19 MiB, 2 passes) in one helper (`packages/db/src/password.ts`): the first full-suite run showed an in-limit login flood starving other users with the library defaults. |
+| A-47 | e2e limits | The e2e compose override raises the per-IP and per-account login limits (all browser sessions come from one address); the defaults in `.env.example` (60 per IP, 10 per account per minute) are what the adversarial acceptance runs use. |
 | A-45 | "On time" in the report | An order is on time when it was packed before the cutoff of its target ship day (the earliest day it could ship, from `received_at`), i.e. it left on its earliest possible ship day. |
 
 ---
@@ -581,20 +588,38 @@ Bugs found in commit 11 by the adversarial suite are fixed inside commit 11, so 
 - [x] 8 api inventory and floor flows
 - [x] 9 worker
 - [x] 10 web
-- [ ] 11 nginx + full compose + adversarial + e2e + perf
-- [ ] 12 README
-- [ ] Every matrix row passing (§1)
-- [ ] ACC-1…17 run and recorded (§10)
-- [ ] CI green for every commit (`verify-history.sh` output)
-- [ ] Clean-checkout run: `.env.example → .env`, typecheck, lint, test, build, adversarial
-- [ ] `docker compose up` + smoke through nginx
-- [ ] Mutation check: rate limiter, auth guard, validator, concurrency guard → tests failed, code restored
-- [ ] Working tree clean
+- [x] 11 nginx + full compose + adversarial + e2e + perf
+- [x] 12 README
+- [x] Every matrix row passing (§1)
+- [x] ACC-1…17 run and recorded (§10)
+- [x] CI green for every commit (`verify-history.sh` output)
+- [x] Clean-checkout run: `.env.example → .env`, typecheck, lint, test, build, adversarial
+- [x] `docker compose up` + smoke through nginx
+- [x] Mutation check: rate limiter, auth guard, validator, concurrency guard → tests failed, code restored
+- [x] Working tree clean
 
 ## 10. Acceptance results
 
-_To be filled with command output summaries as checks run._
+Run on 2026-11-25 against `docker compose up --build` from a clean volume (default `.env.example`, full seed), with `pnpm acceptance` (the table below is its output; #16 was rerun on its own after a wrong test selector in the runner was fixed, #11 had failed once earlier under load and passed in the final run, see docs/BUGS_FOUND.md and the commit message of the last commit).
 
-| # | Result | Evidence |
-|---|---|---|
-| 1–17 | pending | — |
+| # | Check | Result | Evidence |
+| --- | --- | --- | --- |
+| 1 | `cp .env.example .env && docker compose up --build` | PASS | stack up from nothing, seed applied by itself in about 50 s, `pnpm smoke` through nginx: all checks passed |
+| 2 | typecheck, lint, client unchanged, tests, CI on every commit | PASS | `pnpm verify-history`: all 12 commits green from their own worktrees; generated client and openapi.json unchanged |
+| 3 | 300 simultaneous orders, stock 100, three workers | PASS | exactly 100 reserved, 200 awaiting, nothing negative |
+| 4 | batches 10 / 40 / 90 days, minimum 30 | PASS | 40-day batch used, 10-day untouched; minimum exactly / one day less tested |
+| 5 | receipt of 20 with 50 waiting orders | PASS | express and earliest served, nobody twice, ledger balanced |
+| 6 | two scans of one position; repeat | PASS | one scan counted, same answer for repeats |
+| 7 | cancel at the moment of the last scan | PASS | all-or-nothing in 20 rounds; cancel vs packing 15 rounds |
+| 8 | shortage during picking | PASS | cell blocked, picked from another cell |
+| 9 | count of a cell being picked, difference 7 | PASS | count right, approval needed from the shift lead |
+| 10 | packed 17:01, cutoff 17:00, Friday, Warsaw | PASS | ships Monday; DST day also tested |
+| 11 | one order 10x to both copies; chaos mode | PASS | one order, one reserve; every webhook delivered; versions never go back |
+| 12 | `kill -9` mid-reserve and mid-wave; `FLUSHALL` + Redis restart | PASS | everything done once, no extra waves or reserves |
+| 13 | ledger vs stock after everything | PASS | equal per cell and batch over the whole database |
+| 14 | lead on copy A, picker on copy B | PASS | seen in under a second |
+| 15 | other shop / warehouse / picker: direct, other key, sockets | PASS | refused everywhere |
+| 16 | stock, search, 90-day report; reload and Back | PASS | p95: stock 11 ms, search by number 6 ms / customer 35 ms / SKU 6 ms, report 61 ms; state restored from the URL (Playwright) |
+| 17 | README | PASS | `pnpm readme-check`: sections, generated status table, database objects, logins and API keys verified against the running stack |
+
+Other evidence: unit 738 shared + web/lint tests; integration suites for shared, db (seed), core, api (73), worker (14), shop stub; adversarial suite 71 tests; Playwright 9 tests (the four journeys + keyboard scanner, URL state, field errors, live dashboard); `pnpm mutation`: all six disabled protections are caught; 10 bugs found by the tests and fixed (docs/BUGS_FOUND.md).

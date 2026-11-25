@@ -11,7 +11,6 @@ import { Banner, Button, Card, Field, TextInput } from '@/shared/ui';
 
 const MESSAGES: Record<string, string> = {
   ORDER_CANCELLED: 'This order was cancelled. Take the goods to the return cell.',
-  INVALID_TRANSITION: 'This order is not ready for packing (not fully picked yet).',
   NOT_FOUND: 'No such order at this warehouse.',
 };
 

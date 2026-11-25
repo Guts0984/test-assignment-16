@@ -7875,6 +7875,57 @@
           "system"
         ]
       }
+    },
+    "/api/ready": {
+      "get": {
+        "operationId": "SystemController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited (see Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error (shared format, no internals)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBodyDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "system"
+        ]
+      }
     }
   },
   "info": {
@@ -7913,6 +7964,7 @@
                   "RATE_LIMITED",
                   "CONFLICT",
                   "UNEXPECTED",
+                  "UNAVAILABLE",
                   "UNAUTHENTICATED",
                   "INVALID_CREDENTIALS",
                   "TOKEN_INVALID",

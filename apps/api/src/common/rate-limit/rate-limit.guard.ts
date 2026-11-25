@@ -32,7 +32,17 @@ export class RateLimitGuard implements CanActivate {
       checks.push(['login-ip', ip, this.env.RATE_LIMIT_LOGIN_PER_IP]);
       const email = (req.body as { email?: unknown } | undefined)?.email;
       if (typeof email === 'string')
-        checks.push(['login-account', email.toLowerCase(), this.env.RATE_LIMIT_LOGIN_PER_ACCOUNT]);
+        // Keyed by account AND client IP: a stranger who knows an email can only exhaust their own
+        // (ip, account) bucket, never lock the owner out from another address.
+        checks.push(['login-account', `${ip}|${email.toLowerCase()}`, this.env.RATE_LIMIT_LOGIN_PER_ACCOUNT]);
+      // A budget over all addresses together, so a botnet cannot multiply guesses without limit. Trade-off:
+      // an attacker with many addresses can still exhaust it and block that one account for the window.
+      if (typeof email === 'string')
+        checks.push([
+          'login-account-total',
+          email.toLowerCase(),
+          this.env.RATE_LIMIT_LOGIN_PER_ACCOUNT_TOTAL,
+        ]);
     }
     const p = req.principal;
     if (p?.kind === 'api_key') {

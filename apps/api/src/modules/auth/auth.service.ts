@@ -56,13 +56,23 @@ export class AuthService implements OnModuleInit {
     const now = this.clock.now();
     const row = await repo.findRefreshToken(this.db, hashToken(token));
     if (row === null) return fail('TOKEN_INVALID', 'invalid refresh token');
-    if (
-      row.revokedAt !== null ||
-      row.usedAt !== null ||
-      !(await repo.consumeRefreshToken(this.db, row.id, now))
-    ) {
+    if (row.revokedAt !== null) {
       await repo.revokeFamily(this.db, row.familyId, now);
       return fail('TOKEN_REUSED', 'refresh token reuse detected; session revoked');
+    }
+    if (row.usedAt !== null || !(await repo.consumeRefreshToken(this.db, row.id, now))) {
+      // Used already. Two tabs refreshing together present the same token within moments: inside the
+      // grace window that gets a fresh token (once the first answer is out the cookie moves on). Later
+      // reuse is theft: the whole family is revoked.
+      const usedAt = row.usedAt ?? (await repo.findRefreshToken(this.db, hashToken(token)))?.usedAt ?? null;
+      const withinGrace =
+        this.env.REFRESH_REUSE_GRACE_SEC > 0 &&
+        usedAt !== null &&
+        now.getTime() - usedAt.getTime() < this.env.REFRESH_REUSE_GRACE_SEC * 1000;
+      if (!withinGrace) {
+        await repo.revokeFamily(this.db, row.familyId, now);
+        return fail('TOKEN_REUSED', 'refresh token reuse detected; session revoked');
+      }
     }
     if (row.expiresAt <= now) return fail('TOKEN_INVALID', 'refresh token expired');
     const subjectOk =
@@ -94,7 +104,11 @@ export class AuthService implements OnModuleInit {
   }
 
   /** The principal for a staff member or shop user, from the database (roles are never cached in tokens). */
-  private async principalFor(typ: 'staff' | 'shop_user', id: string, familyId: string): Promise<Result<Principal>> {
+  private async principalFor(
+    typ: 'staff' | 'shop_user',
+    id: string,
+    familyId: string,
+  ): Promise<Result<Principal>> {
     if (typ === 'staff') {
       const s = await repo.findStaffById(this.db, id);
       if (s === null || !s.active) return fail('TOKEN_INVALID', 'invalid token');

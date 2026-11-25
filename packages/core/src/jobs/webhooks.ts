@@ -166,6 +166,8 @@ const deliverStockStream = async (
   if (ev === undefined) throw new Error('webhook event insert failed');
   // The version is consumed even if delivery fails, so a later event can never reuse it.
   await tx.$executeRaw`UPDATE webhook_streams SET last_version = ${version} WHERE shop_id = ${s.shop_id}::uuid AND stream = ${s.stream}`;
+  // The 5 s window runs from the moment the send STARTS, so latency can never shorten the gap.
+  const startedAt = d.clock.now();
   const r = await deliver(d, shop, {
     id: ev.id,
     version,
@@ -176,7 +178,7 @@ const deliverStockStream = async (
   });
   if ('status' in r && r.status >= 200 && r.status < 300) {
     await tx.$executeRaw`UPDATE webhook_events SET status = 'delivered', delivered_at = ${d.clock.now()}, attempts = 1 WHERE id = ${ev.id}::uuid`;
-    await tx.$executeRaw`UPDATE webhook_streams SET last_sent_at = ${d.clock.now()}, dirty = false WHERE shop_id = ${s.shop_id}::uuid AND stream = ${s.stream}`;
+    await tx.$executeRaw`UPDATE webhook_streams SET last_sent_at = ${startedAt}, dirty = false WHERE shop_id = ${s.shop_id}::uuid AND stream = ${s.stream}`;
     return { next: null };
   }
   await markFailed(tx, ev.id, describe(r), now);

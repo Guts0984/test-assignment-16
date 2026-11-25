@@ -43,6 +43,7 @@ const PUBLIC = new Set([
   'POST /api/auth/logout',
   'GET /api/time',
   'GET /api/health',
+  'GET /api/ready',
 ]);
 const isErrorBody = (b: any): boolean =>
   typeof b?.error?.code === 'string' &&

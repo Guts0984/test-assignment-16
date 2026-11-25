@@ -35,7 +35,7 @@ const send = async (url: string, init: RequestInit, token: string | null): Promi
 
 type RefreshedSession = { readonly accessToken: string; readonly me: unknown };
 
-const requestRefresh = async (): Promise<RefreshedSession | null> => {
+const postRefresh = async (): Promise<RefreshedSession | null> => {
   const r = await fetch(`${publicEnv.NEXT_PUBLIC_API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -46,11 +46,40 @@ const requestRefresh = async (): Promise<RefreshedSession | null> => {
 };
 
 /**
+ * Tabs share one refresh cookie, so refreshes from different tabs must not overlap: a second one
+ * would present the cookie the first just rotated, which the server treats as theft. A Web Lock
+ * queues them; each then reads the newest cookie.
+ */
+const requestRefresh = async (): Promise<RefreshedSession | null> => {
+  if (typeof navigator === 'undefined' || navigator.locks === undefined) return postRefresh();
+  return await navigator.locks.request('ff-refresh-session', postRefresh);
+};
+
+/**
  * Restores a session from the refresh cookie. The session restore and every request that hit a 401
  * share ONE in-flight call: a rotating refresh token can be used once, and a second parallel use
  * would look like token theft and end the session.
  */
 export const refreshSession = (): Promise<RefreshedSession | null> => refreshOnce(requestRefresh);
+
+const expiresInMs = (jwt: string): number => {
+  try {
+    const part = jwt.split('.')[1] ?? '';
+    const payload = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: unknown };
+    return typeof payload.exp === 'number' ? payload.exp * 1000 - Date.now() : 0;
+  } catch {
+    return 0;
+  }
+};
+
+/** The current access token, refreshed first when it is about to expire (sockets outlive one token). */
+export const freshAccessToken = async (): Promise<string | null> => {
+  const t = getAccessToken();
+  if (t !== null && expiresInMs(t) > 60_000) return t;
+  const fresh = await refreshSession();
+  setAccessToken(fresh?.accessToken ?? null);
+  return fresh?.accessToken ?? null;
+};
 
 /** Called by every generated operation; resolves with the parsed body, rejects with ApiError. */
 export const apiFetch = async <T>(url: string, init: RequestInit = {}): Promise<T> => {

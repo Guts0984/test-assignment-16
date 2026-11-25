@@ -3,6 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { type Socket } from 'socket.io-client';
+import { freshAccessToken } from '../api/mutator';
 import { connectSocket } from '../api/socket';
 
 export type LiveState = 'connecting' | 'live' | 'offline';
@@ -26,17 +27,26 @@ export const useLive = (
 
   useEffect(() => {
     if (token === null) return;
-    const socket: Socket = connectSocket(token);
+    const socket: Socket = connectSocket();
     const refetchAll = () => keys.current.forEach((k) => void qc.invalidateQueries({ queryKey: [...k] }));
     socket.on('ready', () => {
       setState('live');
       if (warehouse !== undefined) socket.emit('subscribe', { warehouseId: warehouse });
       refetchAll();
     });
-    socket.on('disconnect', () => setState('offline'));
+    socket.on('disconnect', (reason) => {
+      setState('offline');
+      // The server ends a socket whose token expired or was revoked; socket.io does not retry that
+      // by itself. Reconnecting takes a fresh token (and fails cleanly after logout).
+      if (reason === 'io server disconnect') setTimeout(() => socket.connect(), 1000);
+    });
     socket.on('connect_error', () => setState('offline'));
     for (const e of eventKey.split('|').filter((x) => x !== '')) socket.on(e, refetchAll);
-    const beat = setInterval(() => socket.emit('presence', { token }), 10_000);
+    const beat = setInterval(() => {
+      void freshAccessToken().then((t) => {
+        if (t !== null) socket.emit('presence', { token: t });
+      });
+    }, 10_000);
     return () => {
       clearInterval(beat);
       socket.close();

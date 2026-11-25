@@ -75,6 +75,8 @@ describe('receive -> putaway -> order -> reserve -> wave -> pick -> pack -> labe
     expect(label.headers.get('content-disposition')).toBe(`attachment; filename="label-${orderId}.pdf"`);
     expect((await label.arrayBuffer()).byteLength).toBeGreaterThan(1000);
 
+    // The ship day depends on the wall clock (after the cutoff it is a later day); make it due.
+    await t.db.$executeRaw`UPDATE orders SET ship_day = CURRENT_DATE - 1 WHERE id = ${orderId}::uuid`;
     const ship = await w.api.post(
       `/api/warehouses/${w.wh.id}/shipments`,
       { orderIds: [orderId], idempotencyKey: key() },

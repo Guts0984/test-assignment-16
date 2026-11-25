@@ -457,15 +457,25 @@ export const receiveTransfer = (
       if (t.status !== 'in_transit') return fail('TRANSFER_STATE', 'the transfer was already received');
       const sent = await tx.$queryRaw<{ id: string; sku_id: string; batch_id: string; qty: number }[]>`
         SELECT id, sku_id, batch_id, qty FROM transfer_lines WHERE transfer_id = ${transferId}::uuid`;
-      const got = new Map(input.lines.map((l) => [`${l.skuId}/${l.batchId}`, l.qty]));
+      // Units are reported per (sku, batch); a batch sent from several cells has several lines.
+      const got = new Map<string, number>();
+      for (const l of input.lines)
+        got.set(`${l.skuId}/${l.batchId}`, (got.get(`${l.skuId}/${l.batchId}`) ?? 0) + l.qty);
       if ([...got.keys()].some((k) => !sent.some((s) => `${s.sku_id}/${s.batch_id}` === k)))
         return fail('VALIDATION_FAILED', 'an item was not part of this transfer');
+      const sentTotal = new Map<string, number>();
+      for (const s of sent)
+        sentTotal.set(`${s.sku_id}/${s.batch_id}`, (sentTotal.get(`${s.sku_id}/${s.batch_id}`) ?? 0) + s.qty);
+      for (const [k, q] of got)
+        if (q > (sentTotal.get(k) ?? 0)) return fail('VALIDATION_FAILED', 'received more than was sent');
+      const remaining = new Map(got);
       const recv = await virtualLocation(tx, toWarehouseId, 'receiving');
       const ctx = ctxOf(tx, fx, d, { type: 'staff', id: staff.id }, 'transfer', transferId, now);
       const totals = { received: 0, missing: 0 };
       for (const s of sent) {
-        const q = got.get(`${s.sku_id}/${s.batch_id}`) ?? 0;
-        if (q > s.qty) return fail('VALIDATION_FAILED', 'received more than was sent');
+        const key = `${s.sku_id}/${s.batch_id}`;
+        const q = Math.min(s.qty, remaining.get(key) ?? 0);
+        remaining.set(key, (remaining.get(key) ?? 0) - q);
         if (q > 0)
           await transferStock(ctx, 'transfer_in', {
             warehouseId: toWarehouseId,

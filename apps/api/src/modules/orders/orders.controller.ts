@@ -89,7 +89,7 @@ export class StaffOrdersController {
   constructor(private readonly orders: OrdersService) {}
 
   @Get()
-  @StaffAccess([])
+  @StaffAccess(['shift_lead', 'storekeeper', 'packer'])
   @Ok(OrderPageDto)
   @ApiProtectedErrors()
   async search(@CurrentPrincipal() p: Principal, @Query() q: OrderSearchDto) {
@@ -102,7 +102,7 @@ export class StaffOrdersController {
   }
 
   @Get(':id')
-  @StaffAccess([])
+  @StaffAccess(['shift_lead', 'storekeeper', 'packer'])
   @Ok(OrderDetailDto)
   @ApiProtectedErrors(404)
   async get(@CurrentPrincipal() p: Principal, @Param('id', UUID) id: string) {

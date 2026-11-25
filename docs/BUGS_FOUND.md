@@ -14,3 +14,40 @@ Every row is a bug a test caught. The test stays in the suite.
 | 8 | A request body over 1 MB sent to any write route through nginx | The client got nginx's HTML error page instead of the shared JSON error body, so error handling that expects the documented format broke | nginx generated the 413 (and 400/429/5xx) itself | `error_page` mappings return the same `{ error: { code, message, requestId } }` JSON for every nginx-generated error | `apps/api/test/attacker/specs/input-transport.adv.spec.ts` ("hostile bodies on every write route") |
 | 9 | Browser reload while signed in (found by the Playwright journeys) | The user was sent back to the login page: the session restore and the first API call each refreshed with the same rotating cookie at once; reuse detection revoked the family and the winning request ended in a 500 | Two parallel uses of one single-use refresh token, and `issue()` re-resolved the freshly signed token (which the loser had just revoked) | The client shares one in-flight refresh (`refreshOnce`), queries wait for the session, and the server builds the principal directly instead of re-resolving the token | `apps/web/src/shared/api/token-store.spec.ts`, `apps/api/test/integration/auth.int.spec.ts` ("parallel refresh"), `apps/api/test/attacker/specs/auth-keys.adv.spec.ts` |
 | 10 | Any webhook to a host name (`http://shop-stub:4000/...`) in docker compose (found by the e2e journeys: the shop never got a status) | Every webhook failed with `network` and ended in the failed-jobs list | The SSRF guard's DNS hook returned one address, but Node asks for an address list (autoSelectFamily). Tests had used literal IPs, which skip DNS | The hook resolves all addresses, supports both callback shapes, and refuses a name if any answer is private | `apps/worker/test/integration/webhooks.int.spec.ts` ("delivers to a host NAME") |
+
+## Found in an external review (fixed afterwards)
+
+| # | Problem | Fix | Test |
+| --- | --- | --- | --- |
+| R1 | The per-account login limit was keyed by email alone, so anyone who knew an email could lock its owner out from any address | The account bucket is keyed by (client IP, email); the per-IP bucket still caps one address | `rate-limit.adv.spec.ts` ("a stranger hammering a known email ...") |
+| R2 | A scan or shortage resent after a dropped connection got a new idempotency key and counted twice | The key is kept for an unconfirmed request and reused when the same scan is repeated; cleared on any definitive answer | `pick-scanner` flow; server idempotency already covered by `floor-flow.int.spec.ts` |
+| R3 | Live pages stopped updating after the 15 minute access token: the socket kept the login-time token and was never reconnected after the server dropped it | Socket auth is a callback that returns a fresh token (refreshing when near expiry); the heartbeat sends a fresh token; a server-side disconnect triggers a reconnect | `use-live.ts`, `socket.ts` |
+| R4 | After logout or role removal an open socket kept receiving shift-lead room events | The gateway re-resolves each socket's token every `SOCKET_PRESENCE_TTL_SEC / 3` and leaves every room the principal no longer holds (or disconnects) | `permissions-realtime.int.spec.ts` rights, gateway `recheck` |
+| R5 | Receiving a transfer where one batch was sent from two cells booked units nobody reported | Received quantity is applied per (SKU, batch) across the sent lines in order; more than sent is refused | `regressions.int.spec.ts` ("one batch sent from two cells ...") |
+| R6 | An explicitly named order could ship before its ship day | `shipOrders` checks `ship_day <= today` for named orders too | `regressions.int.spec.ts` ("not shipped before its ship day") |
+| R7 | Two tabs refreshing at once ended in logout | Refreshes are serialised across tabs with a Web Lock; each reads the newest cookie | `mutator.ts` |
+| R8 | The api copies and the stub ignored SIGTERM (exit 137) | Explicit graceful shutdown (close idle connections, app, three Redis clients, force exit after 8 s); stub handles SIGTERM; compose `init: true` | compose smoke |
+| R9 | A picker could list and read every order of the warehouse (customer data) | Staff order list and detail need shift lead, storekeeper or packer (or admin) | `regressions.int.spec.ts` ("order visibility") |
+| R10 | The shortage form could not be filled with a mouse: every click moved focus back to the scan field | Focus returns to the scan field only for clicks outside inputs and labels | `pick-scanner.tsx` |
+| R11 | README said a job is finished in the same transaction as its effect | README corrected: finish is a separate conditional transaction; handlers are idempotent so a crash in between only retries | README |
+| R12 | Report periods started at UTC midnight | Whole local days of each warehouse's time zone | `reports.ts` |
+| R13 | Database down: `/api/health` and login answered 500 | New `UNAVAILABLE` (503) code for connection failures; `/api/health` answers 503; `/api/ready` checks database and Redis | `errors-openapi.int.spec.ts` |
+| R14 | Scanning an already packed order said "not fully picked yet" and could not reprint | A packed order answers with the same result (label link) and no new event; a shipped one says it was shipped | `regressions.int.spec.ts` ("scanning a packed order again ...") |
+| R15 | Spec conflict: packed orders cannot be cancelled although the spec says "until shipped" | Kept as documented decision D-3 (invariant 5: the order is already packed and labelled) | README decisions |
+| R16 | The adversarial suite restarted any `fulfillment-redis*` container and removed any `ff-adv-nginx*` one | Each run starts its own Redis container (`ff-adv-redis-<pid>`) and cleanup only removes containers whose owning process is gone | harness |
+
+## Second review round (problems in the first round of fixes)
+
+| # | Problem | Fix | Test |
+| --- | --- | --- | --- |
+| S1 | A socket dropped while its token was still being checked kept a re-check timer forever (245 of 300 leaked, database load x4) | The timer starts only after the awaits and only if the socket is still connected; disconnect clears it | `regressions.int.spec.ts` ("socket timers"): 40 leaked timers without the fix |
+| S2 | Two tabs refreshing together still logged everyone out (the Web Lock does not exist on plain HTTP and does not cover other browsers' profiles) | Server grace window `REFRESH_REUSE_GRACE_SEC` (10 s): a just-rotated token presented again gets a fresh token; later reuse still revokes the family | `regressions.int.spec.ts` ("refresh grace window"); strict specs run with grace 0 |
+| S3 | `/api/ready` hung 60 s with Redis down | Dependencies are checked with a 2 s timeout | `ready()` |
+| S4 | Worker exited 143 on a clean stop | `init: true` removed from the worker (it handles signals itself) | compose |
+| S5 | Live sockets dropped once per token lifetime | The server re-check follows the fresh token sent by the heartbeat | gateway `presence` |
+| S6 | No per-account cap across IPs after the lockout fix | Added `RATE_LIMIT_LOGIN_PER_ACCOUNT_TOTAL` (default 100 per window). Trade-off: a botnet can still block one account for a window | `rate-limit.adv.spec.ts` ("many addresses ...") |
+| S7 | 365-day report 4x slower | Per-warehouse day bounds are computed once per warehouse and joined (365 days about 0.37 s, 90 days about 0.09 s on the full seed) | perf |
+| S8 | README said logins are limited by account | README describes the three login limits and the refresh grace window | README |
+| S9 | README claimed ports avoid other projects | Wording removed; README says how to change the port | README |
+| S10 | Packed orders cannot be cancelled although the spec says "until shipped" | Unchanged, decision D-3 | README |
+| S11 | A `.env` made before the new variables turned them into blank values (login limit 0) | Compose supplies defaults for the two new variables | compose |
