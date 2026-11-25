@@ -68,7 +68,9 @@ const waitHttp = async (url: string, ms = 60_000): Promise<void> => {
   throw new Error(`timed out waiting for ${url}`);
 };
 
-export const startStack = async (): Promise<Stack> => {
+const spawned: ChildProcess[] = [];
+
+const boot = async (): Promise<Stack> => {
   const dot = loadDotEnv();
   const dbUrl = (dot.TEST_DATABASE_URL ?? '').replace(/_test$/, '_adv_test');
   await resetTestDatabase(dbUrl);
@@ -135,6 +137,7 @@ export const startStack = async (): Promise<Stack> => {
       stdio: ['ignore', 'inherit', 'inherit'],
     });
     procs.push(p);
+    spawned.push(p);
     return p;
   };
   const workers: (ChildProcess | null)[] = [null, null, null];
@@ -226,4 +229,27 @@ export const startStack = async (): Promise<Stack> => {
     kill9Worker,
     stopAll,
   };
+};
+
+/**
+ * Boots the stack. It needs Linux: nginx runs with host networking and the per-IP specs bind source
+ * addresses from 127.0.0.0/8, neither of which exists on macOS or Windows (run the suite in a Linux
+ * container there). If the boot fails, nothing is left behind: containers and processes are removed.
+ */
+export const startStack = async (): Promise<Stack> => {
+  if (process.platform !== 'linux')
+    throw new Error(
+      'the adversarial suite needs Linux (host networking and 127.0.0.0/8 source addresses); run it in a Linux container or in CI',
+    );
+  try {
+    return await boot();
+  } catch (e) {
+    for (const p of spawned) if (p.exitCode === null && p.signalCode === null) p.kill('SIGKILL');
+    execFileSync(
+      'docker',
+      ['rm', '-f', `ff-adv-nginx-${process.pid}`, `ff-adv-redis-${process.pid}`],
+      { stdio: 'ignore' },
+    );
+    throw e;
+  }
 };

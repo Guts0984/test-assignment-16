@@ -1,4 +1,4 @@
-name: fulfillment
+name: ${COMPOSE_PROJECT_NAME:-fulfillment}
 
 # Everything starts with: cp .env.example .env && docker compose up --build
 # Migrations and the seed run by themselves in the one-shot "migrate" service.
@@ -35,7 +35,7 @@ x-api-env: &api-env
   COOKIE_SECURE: ${COOKIE_SECURE}
   API_KEY_PEPPER: ${API_KEY_PEPPER}
   CORS_ORIGINS: ${CORS_ORIGINS}
-  TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS}
+  TRUSTED_PROXY_CIDRS: ${NGINX_IP:-172.31.116.10}/32
   BODY_LIMIT_BYTES: ${BODY_LIMIT_BYTES}
   RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED}
   RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS}
@@ -66,8 +66,8 @@ networks:
   default:
     ipam:
       config:
-        - subnet: 172.31.116.0/24
-          ip_range: 172.31.116.128/25
+        - subnet: ${NET_SUBNET:-172.31.116.0/24}
+          ip_range: ${NET_IP_RANGE:-172.31.116.128/25}
 
 volumes:
   pgdata: {}
@@ -193,6 +193,6 @@ services:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       default:
-        ipv4_address: 172.31.116.10
+        ipv4_address: ${NGINX_IP:-172.31.116.10}
     ports:
       - '${NGINX_HOST_PORT}:80'

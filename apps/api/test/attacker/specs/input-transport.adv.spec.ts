@@ -283,6 +283,14 @@ describe('transport and stored content', () => {
       `GET /api/health HTTP/1.1\r\nHost: x\r\nX-Big: ${'a'.repeat(70_000)}\r\nConnection: close\r\n\r\n`,
     );
     expect(huge).toMatch(/^HTTP\/1\.1 (400|431|414)/);
+    // nginx's own refusals use the shared JSON error body, never its HTML page
+    expect(huge).toMatch(/"code":"VALIDATION_FAILED"/);
+    const longUrl = await raw(
+      getStack().nginx,
+      `GET /api/health?x=${'a'.repeat(9000)} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n`,
+    );
+    expect(longUrl).toMatch(/^HTTP\/1\.1 414/);
+    expect(longUrl).toMatch(/"code":"VALIDATION_FAILED"/);
     expect((await client({ sourceIp: nextIp() }).get('/api/health')).status).toBe(200);
   });
 

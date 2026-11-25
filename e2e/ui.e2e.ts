@@ -44,6 +44,31 @@ test('the scanner screen works with the keyboard only; a bad scan beeps and says
   await expect(page.getByText('Task complete. Hand over to packing.').first()).toBeVisible();
 });
 
+test('an item scanned before the answer to the cell scan arrived is still read as the item', async ({
+  browser,
+}) => {
+  const w = await newWorld();
+  const sku = await newSku(w);
+  await stockUp(w, sku, 'A-001', 5);
+  const { orderId } = await sendOrder(w, [{ sku: sku.code, qty: 1 }]);
+  await poll(async () => (await orderState(w, orderId)).status === 'reserved');
+  await call('POST', `/api/warehouses/${w.wh.id}/waves`, w.lead.token);
+  const page = await (await browser.newContext()).newPage();
+  // a slow network: the answer to the cell scan comes after the item has already been scanned
+  await page.route('**/scan-cell', async (route) => {
+    await new Promise((r) => setTimeout(r, 1200));
+    await route.continue();
+  });
+  await signIn(page, w.picker.email, /\/w\/.+\/picker$/);
+  await expect(page.getByTestId('scan-input')).toBeFocused();
+  await page.keyboard.type('A-001');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type(sku.barcode); // no waiting for "Cell A-001 confirmed"
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Task complete. Hand over to packing.').first()).toBeVisible();
+  await expect(page.getByRole('alert').filter({ hasText: 'Wrong cell' })).toHaveCount(0);
+});
+
 test('report period and filters live in the URL: reload and Back restore them', async ({ browser }) => {
   const w = await newWorld();
   const page = await (await browser.newContext()).newPage();

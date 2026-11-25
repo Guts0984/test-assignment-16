@@ -59,3 +59,15 @@ Every row is a bug a test caught. The test stays in the suite.
 | T1 | The cross-IP login cap (S6) let ~10 addresses use up the budget and lock the owner out, which the rules forbid | The cap is removed entirely: any limit shared by all addresses can be exhausted by an attacker. Only per-IP and per-(IP, account) limits remain; README states the cost | `rate-limit.adv.spec.ts` ("ten addresses hammering one known email ...") |
 | T2 | A webhook event could be declared dead after 2 failed deliveries: the retry budget counted failed stream runs, so failures of earlier events used up the budget of later ones | The budget is the failing event's own attempt count (`failClaim` takes the attempt number reported by the handler); a manual rerun resets event attempts | `apps/worker/test/integration/webhooks.int.spec.ts` ("retry budget"): the stream went dead on the third run before the fix |
 | T3 | A used refresh token could be replayed without limit inside the grace window (20 sessions from one token) | Each token counts its replays (`refresh_tokens.reuse_count`, migration 0005), at most 5 per token; further presentations are theft and revoke the family | `regressions.int.spec.ts` ("refresh grace limit") |
+
+## Fourth review round
+
+| # | Problem | Fix | Test |
+| --- | --- | --- | --- |
+| U1 | An item scanned before the answer to the cell scan arrived was sent as a cell scan ("Wrong cell"); E2E-2 failed locally on a slower machine | Scans are queued and processed one at a time against the latest task and step (refs updated synchronously) | `e2e/ui.e2e.ts` ("an item scanned before the answer ..."): fails after 21 s on the old code |
+| U2 | The adversarial suite needs Linux (host networking) and left containers behind when its start failed | Clear error on other systems; a failed start removes its containers and processes | harness |
+| U3 | A request address over about 8 KB got nginx's HTML 500 (named location cannot be used before the request line is parsed); oversized headers got an HTML 400 | `error_page 414 /_err414` and `431 494` return the shared JSON error | `input-transport.adv.spec.ts` |
+| U4 | The report returned `p90Minutes: 456.00000000000006` | Minutes are rounded to two decimals | `floor-inbound.int.spec.ts` |
+| U5 | The Docker subnet was fixed, so two stacks could not run side by side | `COMPOSE_PROJECT_NAME`, `NET_SUBNET`, `NET_IP_RANGE`, `NGINX_IP` in `.env` (defaults unchanged) | `docker compose config` |
+| U6 | `docs/BUGS_FOUND_USER.md` was a pasted Prisma error | Deleted | - |
+| U7 | Packed orders cannot be cancelled (spec: "until shipped") | Unchanged, decision D-3; CI coverage of every commit was left alone on request | - |

@@ -63,7 +63,7 @@ pnpm typecheck && pnpm lint
 pnpm test                                # unit tests (shared rules, web model/lib, lint rules)
 pnpm test:int                            # integration: real Postgres + Redis, Nest app in-process
 pnpm build
-pnpm --filter @ff/api test:adversarial   # real nginx + 2 api copies + 3 workers + stub, attacked over the network
+pnpm --filter @ff/api test:adversarial   # real nginx + 2 api copies + 3 workers + stub, attacked over the network (Linux only: host networking; on macOS run it in a Linux container)
 pnpm e2e:up && pnpm e2e                  # Playwright on the full compose stack (small seed, test clock)
 pnpm perf                                # performance budgets on the full seed (compose up with SEED_PROFILE=full)
 pnpm smoke                               # smoke through nginx
@@ -239,7 +239,7 @@ The full list with reasons is in `plan.md` (Assumptions and Deviations). The one
 - **Receiving** works against the shop's inbound request (ASN) or ad hoc; closing a receipt records every difference (over, under, unexpected) and the shop sees it.
 - **Label** is an A6 PDF with a Code128 of the order number; the file name is built from the order id only; the PDF is fetched with the user's token and opened in a new tab.
 - **Webhook and stock numbers** shown to shops: _on shelf_ (storage cells), _reserved_, _available_ (on shelf minus reserved, not counting blocked cells or batches below the shop's minimum shelf life), _in transit_ (transfers to that warehouse), _on dock_.
-- **Compose.** Two api services `api-a` and `api-b` (so tests and the chaos mode can address each copy), one-shot `migrate`, `worker` with `deploy.replicas` (3). nginx has the fixed address `172.31.116.10`, which is the only trusted proxy.
+- **Compose.** Two api services `api-a` and `api-b` (so tests and the chaos mode can address each copy), one-shot `migrate`, `worker` with `deploy.replicas` (3). nginx has a fixed address (`NGINX_IP`, default `172.31.116.10` in `NET_SUBNET`), which is the only trusted proxy. To run a second stack on the same machine give it its own `COMPOSE_PROJECT_NAME`, `NET_SUBNET`, `NET_IP_RANGE`, `NGINX_IP` and host ports in `.env`.
 - **Language.** Everything (UI, API messages, seed data, docs) is English, one locale, no i18n framework.
 - **Not built:** a rollup table for reports (not needed), holiday calendars per country (a list of dates per warehouse instead).
 

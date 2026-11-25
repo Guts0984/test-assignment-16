@@ -30,8 +30,21 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
   const scanCell = usePickingControllerScanCell();
   const scan = usePickingControllerScan();
   const shortage = usePickingControllerShortage();
-  const [task, setTask] = useState<TaskDto | null>(null);
-  const [ui, setUi] = useState<ScanUi>(initialScanUi);
+  const [task, setTaskState] = useState<TaskDto | null>(null);
+  const [ui, setUiState] = useState<ScanUi>(initialScanUi);
+  // Scans are processed one at a time against the LATEST task and step (refs, updated synchronously):
+  // an item scanned before the answer to the cell scan arrived must not be read as another cell scan.
+  const taskRef = useRef<TaskDto | null>(null);
+  const uiRef = useRef<ScanUi>(initialScanUi);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const setTask = (t: TaskDto | null) => {
+    taskRef.current = t;
+    setTaskState(t);
+  };
+  const setUi = (next: ScanUi | ((u: ScanUi) => ScanUi)) => {
+    uiRef.current = typeof next === 'function' ? next(uiRef.current) : next;
+    setUiState(uiRef.current);
+  };
   const [batch, setBatch] = useState('');
   const [empty, setEmpty] = useState(false);
   const [short, setShort] = useState<{ found: string } | null>(null);
@@ -88,6 +101,10 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
 
   const submit = async (raw: string) => {
     const value = normalizeScan(raw);
+    const task = taskRef.current;
+    const current = task?.lines ?? [];
+    const line = nextLine(current);
+    const step = stepFor(current, uiRef.current.scannedCell);
     if (value === '' || task === null || line === undefined) return;
     if (step === 'cell') {
       try {
@@ -199,7 +216,8 @@ export const PickScanner = ({ warehouseId }: { warehouseId: string }) => {
             if (el === null) return;
             const v = el.value;
             el.value = '';
-            void submit(v).finally(refocus);
+            // queued: the next scan starts only after the previous one was answered and applied
+            queue.current = queue.current.then(() => submit(v)).finally(refocus);
           }}
         >
           <Field label={step === 'cell' ? 'Scan cell' : 'Scan item'}>

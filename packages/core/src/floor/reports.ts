@@ -10,6 +10,8 @@ export type ReportFilter = {
 };
 
 const DAY_MS = 86_400_000;
+/** Minutes are shown to two decimals (floating point noise like 456.00000000000006 never leaves the api). */
+const round2 = (n: number | null): number | null => (n === null ? null : Math.round(n * 100) / 100);
 /**
  * The period is whole local days of each warehouse (its own time zone). The UTC prefilter (+-15 h
  * covers every zone) keeps the time index usable; the exact test is the warehouse-local midnight.
@@ -88,16 +90,16 @@ export const periodReport = async (db: Db, f: ReportFilter) => {
       shipped: total.shipped,
       onTime: total.on_time,
       onTimeRate: total.shipped === 0 ? null : total.on_time / total.shipped,
-      medianMinutes: total.median_min,
-      p90Minutes: total.p90_min,
+      medianMinutes: round2(total.median_min),
+      p90Minutes: round2(total.p90_min),
     },
     byWarehouse: byWarehouse.map((r) => ({
       warehouseId: r.warehouse_id,
       warehouseCode: r.code,
       shipped: r.shipped,
       onTime: r.on_time,
-      medianMinutes: r.median_min,
-      p90Minutes: r.p90_min,
+      medianMinutes: round2(r.median_min),
+      p90Minutes: round2(r.p90_min),
     })),
     shortages: people(shortages),
     adjustments: people(adjustments),
