@@ -169,6 +169,28 @@ describe('refresh grace window', () => {
   });
 });
 
+describe('refresh grace limit', () => {
+  it('one token cannot mint unlimited sessions inside the window: 1 rotation + 5 replays, the rest are theft', async () => {
+    const graceApp = await startTestApp({ RATE_LIMIT_ENABLED: 'false', REFRESH_REUSE_GRACE_SEC: '10' });
+    try {
+      const w = await world(graceApp);
+      const staff = await makeStaff(w.api, w.admin, []);
+      const old = (await w.api.post('/api/auth/login', { email: staff.email, password: PASSWORD })).body
+        .refreshToken as string;
+      const res = await Promise.all(
+        Array.from({ length: 20 }, () => w.api.post('/api/auth/refresh', { refreshToken: old })),
+      );
+      expect(res.filter((r) => r.status === 200)).toHaveLength(6);
+      // the refused ones counted as reuse: the family is revoked, so none of the sessions survives
+      const sessions = res.filter((r) => r.status === 200);
+      for (const r of sessions)
+        expect((await w.api.get('/api/auth/me', { token: r.body.accessToken })).status).toBe(401);
+    } finally {
+      await graceApp.close();
+    }
+  });
+});
+
 describe('socket timers', () => {
   it('sockets that drop right after connecting leave no re-check timer behind', async () => {
     const w = await world(t);

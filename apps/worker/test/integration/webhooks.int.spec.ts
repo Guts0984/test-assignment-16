@@ -143,6 +143,47 @@ describe('order status events', () => {
   });
 });
 
+describe('retry budget', () => {
+  it('is counted per event: failures of earlier events in the stream never use up the budget of a later one', async () => {
+    const { shop } = await makeShop(db, 'http://127.0.0.1:1/unused');
+    const tc = testClock();
+    const failedOnce = new Set<number>();
+    // every event fails exactly once, then goes through: 3 failing runs in a row, 1 attempt per event
+    const send = async (_url: string, body: string) => {
+      const v = (JSON.parse(body) as { version: number }).version;
+      if (failedOnce.has(v)) return { status: 200 };
+      failedOnce.add(v);
+      return { status: 500 };
+    };
+    const d = jobDeps(db, tc.clock, {
+      send: send as never,
+      jobs: {
+        leaseMs: 30_000,
+        maxAttempts: 3,
+        backoffBaseMs: 100,
+        backoffMaxMs: 100,
+        byKind: { webhook_stream: { maxAttempts: 3, backoffBaseMs: 100, backoffMaxMs: 100 } },
+      },
+    });
+    const orderId = randomUUID();
+    await orderEvents(shop.id, orderId, 3, tc.clock);
+    const row = await db.scheduledAction.findFirstOrThrow({
+      where: { kind: 'webhook_stream', key: streamActionKey(shop.id, orderStream(orderId)) },
+    });
+    const out: string[] = [];
+    for (let i = 0; i < 5 && out.at(-1) !== 'done'; i += 1) {
+      out.push(await processAction(d, row.id, 'w'));
+      tc.advance(1000);
+    }
+    expect(out).toEqual(['retry', 'retry', 'retry', 'done']);
+    expect((await db.webhookEvent.findMany({ where: { shopId: shop.id } })).map((e) => e.status)).toEqual([
+      'delivered',
+      'delivered',
+      'delivered',
+    ]);
+  });
+});
+
 describe('stock events', () => {
   const makeSku = async (shopId: string) => {
     const sku = await db.sku.create({
@@ -247,17 +288,29 @@ describe('outbound safety', () => {
       const url = rcv.url.replace('127.0.0.1', 'localhost');
       const tc = testClock();
       const { shop } = await makeShop(db, url);
-      const id = async (o: string) => (await db.scheduledAction.findFirstOrThrow({ where: { kind: 'webhook_stream', key: streamActionKey(shop.id, orderStream(o)) } })).id;
+      const id = async (o: string) =>
+        (
+          await db.scheduledAction.findFirstOrThrow({
+            where: { kind: 'webhook_stream', key: streamActionKey(shop.id, orderStream(o)) },
+          })
+        ).id;
       const o1 = randomUUID();
       await orderEvents(shop.id, o1, 1, tc.clock);
-      const open = jobDeps(db, tc.clock, { webhooks: { encKey: ENC_KEY, timeoutMs: 1500, coalesceMs: 5000, allowPrivate: true } });
+      const open = jobDeps(db, tc.clock, {
+        webhooks: { encKey: ENC_KEY, timeoutMs: 1500, coalesceMs: 5000, allowPrivate: true },
+      });
       expect(await processAction(open, await id(o1), 'w')).toBe('done');
       expect(rcv.got).toHaveLength(1);
       const o2 = randomUUID();
       await orderEvents(shop.id, o2, 1, tc.clock);
-      const closed = jobDeps(db, tc.clock, { webhooks: { encKey: ENC_KEY, timeoutMs: 1500, coalesceMs: 5000, allowPrivate: false } });
+      const closed = jobDeps(db, tc.clock, {
+        webhooks: { encKey: ENC_KEY, timeoutMs: 1500, coalesceMs: 5000, allowPrivate: false },
+      });
       expect(await processAction(closed, await id(o2), 'w')).toBe('retry');
-      expect((await db.webhookEvent.findFirstOrThrow({ where: { shopId: shop.id, stream: orderStream(o2) } })).lastError).toBe('blocked');
+      expect(
+        (await db.webhookEvent.findFirstOrThrow({ where: { shopId: shop.id, stream: orderStream(o2) } }))
+          .lastError,
+      ).toBe('blocked');
     } finally {
       await rcv.close();
     }

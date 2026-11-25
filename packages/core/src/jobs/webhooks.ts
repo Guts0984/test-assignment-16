@@ -83,8 +83,13 @@ const lockStream = async (tx: Tx, shopId: string, stream: string): Promise<Strea
       WHERE shop_id = ${shopId}::uuid AND stream = ${stream} FOR UPDATE`
   )[0] ?? null;
 
-const markFailed = (tx: Tx, id: string, err: string, nextAt: Date) =>
-  tx.$executeRaw`UPDATE webhook_events SET attempts = attempts + 1, last_error = ${err}, next_attempt_at = ${nextAt}, status = 'pending' WHERE id = ${id}::uuid`;
+/** Records a failed delivery and returns how many attempts this event has had. */
+const markFailed = async (tx: Tx, id: string, err: string, nextAt: Date): Promise<number> => {
+  const [row] = await tx.$queryRaw<{ attempts: number }[]>`
+    UPDATE webhook_events SET attempts = attempts + 1, last_error = ${err}, next_attempt_at = ${nextAt}, status = 'pending'
+    WHERE id = ${id}::uuid RETURNING attempts`;
+  return row?.attempts ?? 1;
+};
 
 /** Order streams: deliver pending events in version order; stop (and retry later) on the first failure. */
 const deliverOrderStream = async (
@@ -112,8 +117,11 @@ const deliverOrderStream = async (
       await tx.$executeRaw`UPDATE webhook_events SET status = 'delivered', delivered_at = ${d.clock.now()}, attempts = attempts + 1 WHERE id = ${e.id}::uuid`;
       continue;
     }
-    await markFailed(tx, e.id, describe(r), now);
-    throw new Error(`webhook ${stream} v${e.version} failed: ${describe(r)}`);
+    const eventAttempts = await markFailed(tx, e.id, describe(r), now);
+    // The retry budget is this event's own attempt count (see processAction), not the stream run's.
+    throw Object.assign(new Error(`webhook ${stream} v${e.version} failed: ${describe(r)}`), {
+      eventAttempts,
+    });
   }
 };
 
@@ -223,5 +231,5 @@ export const handleWebhookStream = async (
 
 /** After a manual rerun of a dead stream, its dead events are pending again. */
 export const reviveDeadEvents = async (db: Db, shopId: string, stream: string, now: Date): Promise<void> => {
-  await db.$executeRaw`UPDATE webhook_events SET status = 'pending', next_attempt_at = ${now} WHERE shop_id = ${shopId}::uuid AND stream = ${stream} AND status = 'dead'`;
+  await db.$executeRaw`UPDATE webhook_events SET status = 'pending', attempts = 0, next_attempt_at = ${now} WHERE shop_id = ${shopId}::uuid AND stream = ${stream} AND status = 'dead'`;
 };

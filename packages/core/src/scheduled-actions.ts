@@ -142,11 +142,13 @@ export const failClaim = async (
   now: Date,
   maxAttempts: number,
   backoffMs: number,
+  /** The attempt number to record; defaults to one more than the row had (a run-level failure). */
+  attemptNo?: number,
 ): Promise<'retry' | 'dead'> => {
   const rows = await db.$queryRaw<{ status: string }[]>`
     UPDATE scheduled_actions SET
-      attempts = attempts + 1,
-      status = CASE WHEN attempts + 1 >= ${maxAttempts} THEN 'dead' ELSE 'pending' END,
+      attempts = COALESCE(${attemptNo ?? null}::int, attempts + 1),
+      status = CASE WHEN COALESCE(${attemptNo ?? null}::int, attempts + 1) >= ${maxAttempts} THEN 'dead' ELSE 'pending' END,
       due_at = ${new Date(now.getTime() + backoffMs)},
       last_error = left(${error}, 2000), lease_until = NULL, locked_by = NULL, updated_at = now()
     WHERE id = ${claim.id}::uuid AND status = 'running' AND run_count = ${claim.runCount}

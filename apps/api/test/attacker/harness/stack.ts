@@ -123,7 +123,6 @@ export const startStack = async (): Promise<Stack> => {
     RATE_LIMIT_LOGIN_PER_ACCOUNT: '10',
     // CI's Postgres allows 100 connections: two api copies and up to three workers must fit with the test's own
     DB_POOL_SIZE: '8',
-    RATE_LIMIT_LOGIN_PER_ACCOUNT_TOTAL: '40',
     REFRESH_REUSE_GRACE_SEC: '0', // the strict single-use specs; the grace window has its own integration test
     WEBHOOK_MAX_ATTEMPTS: '4',
     WEBHOOK_BACKOFF_BASE_MS: '300',

@@ -53,13 +53,18 @@ export const processAction = async (d: JobDeps, actionId: string, workerId: stri
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     const policy = d.jobs.byKind?.[claim.row.kind] ?? d.jobs;
+    // A handler may report which attempt of ITS unit of work failed (a webhook event): the budget then
+    // belongs to that event, so earlier failures of other events in the stream cannot use it up.
+    const reported = (e as { eventAttempts?: unknown } | null)?.eventAttempts;
+    const attemptNo = typeof reported === 'number' ? reported : claim.row.attempts + 1;
     const outcome = await failClaim(
       d.db,
       claim,
       message,
       d.clock.now(),
       policy.maxAttempts,
-      backoffMs(claim.row.attempts + 1, policy.backoffBaseMs, policy.backoffMaxMs),
+      backoffMs(attemptNo, policy.backoffBaseMs, policy.backoffMaxMs),
+      attemptNo,
     );
     // A stream that ran out of attempts keeps its undelivered events marked dead until an admin reruns it.
     if (outcome === 'dead' && claim.row.kind === 'webhook_stream') {

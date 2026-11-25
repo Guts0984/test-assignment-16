@@ -43,6 +43,29 @@ export const consumeRefreshToken = async (db: Db, id: string, now: Date): Promis
   (await db.refreshToken.updateMany({ where: { id, usedAt: null, revokedAt: null }, data: { usedAt: now } }))
     .count === 1;
 
+/**
+ * One more presentation of an already used token inside the grace window. Atomic, and capped, so one
+ * token can never mint more than `max` extra sessions.
+ */
+export const claimGraceReplay = async (
+  db: Db,
+  id: string,
+  now: Date,
+  graceMs: number,
+  max: number,
+): Promise<boolean> =>
+  (
+    await db.refreshToken.updateMany({
+      where: {
+        id,
+        revokedAt: null,
+        usedAt: { gt: new Date(now.getTime() - graceMs) },
+        reuseCount: { lt: max },
+      },
+      data: { reuseCount: { increment: 1 } },
+    })
+  ).count === 1;
+
 export const revokeFamily = (db: Db, familyId: string, now: Date) =>
   db.refreshToken.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: now } });
 

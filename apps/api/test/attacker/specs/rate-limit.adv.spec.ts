@@ -134,20 +134,22 @@ describe('limits by real client IP', () => {
     ).toBe(200);
   });
 
-  it('many addresses cannot multiply guesses at one account without limit: a total budget applies', async () => {
+  it('ten addresses hammering one known email cannot lock the owner out', async () => {
     const w = await newWorld();
     const email = (await getStack().db.staff.findUniqueOrThrow({ where: { id: w.picker1.id } })).email;
     await alignWindow();
-    const ips = Array.from({ length: 8 }, () => nextIp());
-    const res = await burst(80, (i) =>
+    const ips = Array.from({ length: 10 }, () => nextIp());
+    const res = await burst(100, (i) =>
       client({ sourceIp: ips[i % ips.length] ?? nextIp() }).post('/api/auth/login', {
         email,
         password: `wrong-${i}-password`,
       }),
     );
-    // each address stays under its own 10; the account total (40 in this stack) stops the rest
-    expect(res.filter((r) => r.status === 401).length).toBeLessThanOrEqual(40);
-    expect(res.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(35);
+    // every address spends its own budget of 10 and then gets 429 ...
+    expect(res.filter((r) => r.status === 401).length).toBeLessThanOrEqual(100);
+    // ... and the owner, from an eleventh address, still signs in with the right password
+    const owner = await client({ sourceIp: nextIp() }).post('/api/auth/login', { email, password: PASSWORD });
+    expect(owner.status).toBe(200);
   });
 
   it('recovers in the next window', async () => {

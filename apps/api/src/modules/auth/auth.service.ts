@@ -25,6 +25,9 @@ export type Session = {
   readonly principal: Principal;
 };
 
+/** Extra sessions one rotated token may produce inside the grace window (a few tabs reloading together). */
+const MAX_GRACE_REPLAYS = 5;
+
 @Injectable()
 export class AuthService implements OnModuleInit {
   private dummyHash = '';
@@ -64,11 +67,9 @@ export class AuthService implements OnModuleInit {
       // Used already. Two tabs refreshing together present the same token within moments: inside the
       // grace window that gets a fresh token (once the first answer is out the cookie moves on). Later
       // reuse is theft: the whole family is revoked.
-      const usedAt = row.usedAt ?? (await repo.findRefreshToken(this.db, hashToken(token)))?.usedAt ?? null;
+      const graceMs = this.env.REFRESH_REUSE_GRACE_SEC * 1000;
       const withinGrace =
-        this.env.REFRESH_REUSE_GRACE_SEC > 0 &&
-        usedAt !== null &&
-        now.getTime() - usedAt.getTime() < this.env.REFRESH_REUSE_GRACE_SEC * 1000;
+        graceMs > 0 && (await repo.claimGraceReplay(this.db, row.id, now, graceMs, MAX_GRACE_REPLAYS));
       if (!withinGrace) {
         await repo.revokeFamily(this.db, row.familyId, now);
         return fail('TOKEN_REUSED', 'refresh token reuse detected; session revoked');

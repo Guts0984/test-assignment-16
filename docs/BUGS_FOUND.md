@@ -45,9 +45,17 @@ Every row is a bug a test caught. The test stays in the suite.
 | S3 | `/api/ready` hung 60 s with Redis down | Dependencies are checked with a 2 s timeout | `ready()` |
 | S4 | Worker exited 143 on a clean stop | `init: true` removed from the worker (it handles signals itself) | compose |
 | S5 | Live sockets dropped once per token lifetime | The server re-check follows the fresh token sent by the heartbeat | gateway `presence` |
-| S6 | No per-account cap across IPs after the lockout fix | Added `RATE_LIMIT_LOGIN_PER_ACCOUNT_TOTAL` (default 100 per window). Trade-off: a botnet can still block one account for a window | `rate-limit.adv.spec.ts` ("many addresses ...") |
+| S6 | No per-account cap across IPs after the lockout fix | Tried a cross-IP cap; third round showed it can be used up to lock the owner out, so it was removed (see T1) | - |
 | S7 | 365-day report 4x slower | Per-warehouse day bounds are computed once per warehouse and joined (365 days about 0.37 s, 90 days about 0.09 s on the full seed) | perf |
 | S8 | README said logins are limited by account | README describes the three login limits and the refresh grace window | README |
 | S9 | README claimed ports avoid other projects | Wording removed; README says how to change the port | README |
 | S10 | Packed orders cannot be cancelled although the spec says "until shipped" | Unchanged, decision D-3 | README |
 | S11 | A `.env` made before the new variables turned them into blank values (login limit 0) | Compose supplies defaults for the two new variables | compose |
+
+## Third review round
+
+| # | Problem | Fix | Test |
+| --- | --- | --- | --- |
+| T1 | The cross-IP login cap (S6) let ~10 addresses use up the budget and lock the owner out, which the rules forbid | The cap is removed entirely: any limit shared by all addresses can be exhausted by an attacker. Only per-IP and per-(IP, account) limits remain; README states the cost | `rate-limit.adv.spec.ts` ("ten addresses hammering one known email ...") |
+| T2 | A webhook event could be declared dead after 2 failed deliveries: the retry budget counted failed stream runs, so failures of earlier events used up the budget of later ones | The budget is the failing event's own attempt count (`failClaim` takes the attempt number reported by the handler); a manual rerun resets event attempts | `apps/worker/test/integration/webhooks.int.spec.ts` ("retry budget"): the stream went dead on the third run before the fix |
+| T3 | A used refresh token could be replayed without limit inside the grace window (20 sessions from one token) | Each token counts its replays (`refresh_tokens.reuse_count`, migration 0005), at most 5 per token; further presentations are theft and revoke the family | `regressions.int.spec.ts` ("refresh grace limit") |
