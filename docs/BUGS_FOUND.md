@@ -71,3 +71,9 @@ Every row is a bug a test caught. The test stays in the suite.
 | U5 | The Docker subnet was fixed, so two stacks could not run side by side | `COMPOSE_PROJECT_NAME`, `NET_SUBNET`, `NET_IP_RANGE`, `NGINX_IP` in `.env` (defaults unchanged) | `docker compose config` |
 | U6 | `docs/BUGS_FOUND_USER.md` was a pasted Prisma error | Deleted | - |
 | U7 | Packed orders cannot be cancelled (spec: "until shipped") | Unchanged, decision D-3; CI coverage of every commit was left alone on request | - |
+
+## Fifth review round
+
+| # | Problem | Fix | Test |
+| --- | --- | --- | --- |
+| V1 | Many small headers totalling 16-32 KB passed nginx but were refused by Node with an empty 431 (no JSON body) | nginx header buffers are 4 x 3 KB, so nginx refuses first with the shared JSON error (checked: 15 KB passes, 16 KB and above get the JSON 431) | `input-transport.adv.spec.ts` (20 headers of 1 KB) |
